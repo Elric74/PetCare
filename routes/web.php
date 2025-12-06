@@ -13,6 +13,12 @@ use App\Http\Controllers\VaccinationController;
 use App\Http\Controllers\MedicalHistoryController;
 use App\Http\Controllers\MedicationController;
 use App\Http\Controllers\GalleryController;
+use App\Http\Controllers\ParameterController;
+use App\Http\Controllers\EidReaderController;
+use App\Http\Controllers\RecurringTreatmentController;
+use App\Http\Controllers\LabReportController;
+use App\Http\Controllers\BreedPhotoController;
+use App\Http\Controllers\InventoryMedocController;
 
 /*
 |--------------------------------------------------------------------------
@@ -63,13 +69,18 @@ Route::middleware([
     Route::get('/pets/breeds', [PetController::class, 'searchBreeds'])->name('pets.searchBreeds');
     Route::get('/pets/{slug}/show', [PetController::class, 'show'])->name('pets.show');
     Route::get('/pets/{slug}/edit', [PetController::class, 'edit'])->name('pets.edit');
+    Route::get('/pets/{slug}/consultation', [PetController::class, 'consultation'])->name('pets.consultation');
     Route::post('/pets/{id}', [PetController::class, 'update'])->name('pets.update');
+    Route::post('/pets/{pet}/send-sms', [PetController::class, 'sendSms'])->name('pets.sendSms');
+    Route::post('/pets/{pet}/send-medication-sms', [PetController::class, 'sendMedicationSms'])->name('pets.sendMedicationSms');
     Route::delete('/pets/{id}', [PetController::class, 'destroy'])->name('pets.destroy');
 
     // Vaccinations
     Route::post('/pets/{pet}/vaccinations', [VaccinationController::class, 'storeVaccination'])->name('pets.vaccinations.store');
     Route::delete('/pets/{pet}/vaccinations/{vaccination}', [VaccinationController::class, 'destroyVaccination'])->name('pets.vaccinations.delete');
     Route::get('/pets/{pet}/vaccinations', [VaccinationController::class, 'fetchVaccinations'])->name('pets.vaccinations.fetch');
+    // Fetch vaccines available for a species (for dropdown)
+    Route::get('/pets/vaccines/{speciesId}', [VaccinationController::class, 'fetchVaccinesBySpecies'])->name('pets.vaccines.bySpecies');
 
     // Medical History
     Route::get('/pets/{pet}/histories', [MedicalHistoryController::class, 'fetchHistories'])->name('pets.histories.fetch');
@@ -111,4 +122,54 @@ Route::middleware([
     Route::get('/items/{slug}/edit', [ItemController::class, 'edit'])->name('items.edit');
     Route::put('/items/{id}', [ItemController::class, 'update'])->name('items.update');
     Route::delete('/items/{id}', [ItemController::class, 'destroy'])->name('items.destroy');
+
+    // Parameters
+    Route::get('/parameters', [ParameterController::class, 'index'])->name('parameters.index');
+    Route::put('/parameters/{parameter}', [ParameterController::class, 'update'])->name('parameters.update');
+    
+    // Recurring Treatments
+    Route::get('/recurring-treatments', [RecurringTreatmentController::class, 'index'])->name('recurring-treatments.index');
+    Route::get('/recurring-treatments/fetch', [RecurringTreatmentController::class, 'fetchAll'])->name('recurring-treatments.fetch');
+    Route::get('/recurring-treatments/by-species/{speciesId?}', [RecurringTreatmentController::class, 'fetchBySpecies'])->name('recurring-treatments.bySpecies');
+    Route::post('/recurring-treatments', [RecurringTreatmentController::class, 'store'])->name('recurring-treatments.store');
+    Route::put('/recurring-treatments/{id}', [RecurringTreatmentController::class, 'update'])->name('recurring-treatments.update');
+    Route::delete('/recurring-treatments/{id}', [RecurringTreatmentController::class, 'destroy'])->name('recurring-treatments.destroy');
+    Route::delete('/recurring-treatments/bulk-delete/selected', [RecurringTreatmentController::class, 'bulkDelete'])->name('recurring-treatments.bulkDelete');
+    Route::get('/recurring-treatments/species', [RecurringTreatmentController::class, 'fetchSpecies'])->name('recurring-treatments.species');
+    
+    // Breed Photo Selector
+    Route::get('/breeds/photo-selector', [BreedPhotoController::class, 'index'])->name('breeds.photo-selector');
+    Route::post('/breeds/fetch-photos', [BreedPhotoController::class, 'fetchPhotos'])->name('breeds.fetch-photos');
+    Route::post('/breeds/save-photo', [BreedPhotoController::class, 'savePhoto'])->name('breeds.save-photo');
+    
+    // eID Reader
+    Route::get('/eid-test', function () {
+        return view('eid-reader-debug');
+    })->name('eid.test');
+    Route::get('/eid/check', [EidReaderController::class, 'checkMiddleware'])->name('eid.check');
+    Route::get('/eid/read-identity', [EidReaderController::class, 'readIdentity'])->name('eid.read.identity');
+    Route::get('/eid/read-photo', [EidReaderController::class, 'readPhoto'])->name('eid.read.photo');
+    Route::get('/eid/read-all', [EidReaderController::class, 'readAll'])->name('eid.read.all');
+
+    // (Lab reports ingestion moved to routes/api.php to avoid CSRF & session middleware)
+
+    // Inventaire Médoc
+    Route::get('/inventaire-medoc/create', [InventoryMedocController::class, 'create'])->name('inventaire-medoc.create');
+    Route::post('/inventaire-medoc/scan', [InventoryMedocController::class, 'scan'])->name('inventaire-medoc.scan');
+    Route::post('/inventaire-medoc/confirm-found', [InventoryMedocController::class, 'confirmFound'])->name('inventaire-medoc.confirm-found');
+    Route::post('/inventaire-medoc/scan-cnk', [InventoryMedocController::class, 'scanCnk'])->name('inventaire-medoc.scan-cnk');
+    Route::post('/inventaire-medoc/save-unknown', [InventoryMedocController::class, 'saveUnknown'])->name('inventaire-medoc.save-unknown');
+    Route::post('/inventaire-medoc/finalize-unknown', [InventoryMedocController::class, 'finalizeUnknown'])->name('inventaire-medoc.finalize-unknown');
+    Route::post('/inventaire-medoc', [InventoryMedocController::class, 'store'])->name('inventaire-medoc.store');
+    // Link CNK to GTIN for future lookups
+    Route::post('/medicaments/link', [\App\Http\Controllers\MedicamentController::class, 'linkGtinCnk'])->name('medicaments.link');
+    // Medicaments listing
+    Route::get('/medicaments', [\App\Http\Controllers\MedicamentController::class, 'index'])->name('medicaments.index');
+    Route::get('/medicaments/{medicament}/edit', [\App\Http\Controllers\MedicamentController::class, 'edit'])->name('medicaments.edit');
+    Route::put('/medicaments/{medicament}', [\App\Http\Controllers\MedicamentController::class, 'update'])->name('medicaments.update');
+
+    // Inventory scan page (Inertia)
+    Route::get('/inventory/scan', function () {
+        return Inertia::render('Inventory/Scan');
+    })->name('inventory.scan');
 });

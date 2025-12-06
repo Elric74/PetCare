@@ -13,9 +13,18 @@ import MedicalHistoryTable from '@/Pages/Pets/Partials/Tables/MedicalHistory.vue
 import MedicationsTable from '@/Pages/Pets/Partials/Tables/Medications.vue'
 import SurgicalHistoryTable from '@/Pages/Pets/Partials/Tables/SurgicalHistory.vue'
 import GalleryTable from '@/Pages/Pets/Partials/Tables/Gallery.vue'
+import { useI18n } from 'vue-i18n'
 
-const { pet } = usePage().props
-const tabs = ref(['Vaccinations', 'Medical History', 'Medications', 'Surgical History', 'Gallery'])
+const { pet, smsLogs } = usePage().props
+const { t } = useI18n()
+const tabs = ref([
+	t('pets_tabs.vaccinations'),
+	t('pets_tabs.medical_history'),
+	t('pets_tabs.medications'),
+	t('pets_tabs.surgical_history'),
+	t('pets_tabs.gallery'),
+	'SMS',
+])
 const toast = useToast();
 const data = ref([])
 
@@ -38,12 +47,12 @@ const fetchVaccinations = async () => {
 
 const deletePet = (id) => {
 	Swal.fire({
-		title: 'Delete Pet?',
-		text: 'Are you sure you want to delete this pet?',
+		title: t('pets.delete_pet_title'),
+		text: t('pets.delete_pet_text'),
 		icon: 'warning',
 		showCancelButton: true,
-		confirmButtonText: 'Yes, delete it',
-		cancelButtonText: 'No, keep it'
+		confirmButtonText: t('items.yes_delete'),
+		cancelButtonText: t('items.no_keep')
 	}).then((result) => {
 		if (result.isConfirmed) {
 			axios.delete(`/pets/${id}`)
@@ -63,12 +72,12 @@ const deletePet = (id) => {
 </script>
 
 <template>
-	<AppLayout title="View Pet">
-		<template #header>
-			<div class="flex justify-between">
-				<h2 class="font-semibold text-xl text-gray-800 leading-tight">
-					Show Pet: {{ pet.name }}
-				</h2>
+    <AppLayout :title="t('pets.view_pet') + ': ' + pet.name">
+			<template #header>
+				<div class="flex justify-between">
+					<h2 class="font-semibold text-xl text-gray-800 leading-tight">
+						{{ t('pets.view_pet') ? t('pets.view_pet') + ': ' + pet.name : ('Show Pet: ' + pet.name) }}
+					</h2>
 				<div class="flex justify-evenly">
 					<Link :href="route('pets.edit', { slug: pet.slug })" class="text-indigo-700 hover:text-indigo-500">
 					<PencilSquareIcon class="w-8 h-8" />
@@ -88,7 +97,13 @@ const deletePet = (id) => {
 			<div class="col-span-12 lg:col-span-3">
 				<div class="w-full max-w-sm overflow-hidden bg-white rounded-lg shadow-lg dark:bg-gray-800">
 					<img v-if="pet.photo" class="object-cover object-center w-full h-56" :src="pet.photo" alt="avatar">
-					<img v-else src="/storage/images/pets/no_photo.png" class="object-cover object-center w-full h-56">
+					<img 
+						v-else-if="pet.breed && pet.breed.photo_path" 
+						class="object-cover object-center w-full h-56"
+						:src="pet.breed.photo_path && pet.breed.photo_path.startsWith('/') ? pet.breed.photo_path : ('/' + pet.breed.photo_path)"
+						alt="breed-default"
+					>
+					<img v-else src="/storage/images/pets/no_photo.png" class="object-cover object-center w-full h-56" alt="no-photo">
 
 					<div class="flex items-center px-6 py-3 bg-indigo-700">
 						<BoltIcon class="w-6 h-6 text-white" />
@@ -113,9 +128,23 @@ const deletePet = (id) => {
 							<h1 class="px-2 text-sm">{{ pet.gender }}</h1>
 						</div>
 
-						<div v-if="pet.age" class="flex items-center mt-4 text-gray-700 dark:text-gray-200">
+						<div class="flex items-center mt-4 text-gray-700 dark:text-gray-200" v-if="pet.is_sterilized">
 							<ArrowSmallRightIcon class="w-6 h-6" />
-							<h1 class="px-2 text-sm">{{ pet.age }}</h1>
+							<h1 class="px-2 text-sm">Stérilisé(e) le {{ pet.sterilized_at ? new Date(pet.sterilized_at).toLocaleDateString() : 'Oui' }}</h1>
+						</div>
+
+						<div v-if="pet.age_years_months || pet.birth_date" class="flex items-center mt-4 text-gray-700 dark:text-gray-200">
+							<ArrowSmallRightIcon class="w-6 h-6" />
+							<h1 class="px-2 text-sm">{{ pet.age_years_months ? pet.age_years_months : (t('pets.birth_label') + ': ' + (pet.birth_date || '-')) }}</h1>
+						</div>
+
+						<div v-if="pet.decedee" class="flex items-center mt-4 text-gray-700 dark:text-gray-200">
+							<ArrowSmallRightIcon class="w-6 h-6" />
+							<h1 class="px-2 text-sm">Décès: Oui</h1>
+						</div>
+						<div v-if="pet.decedee && pet.date_deces" class="flex items-center mt-1 text-gray-700 dark:text-gray-200">
+							<ArrowSmallRightIcon class="w-6 h-6" />
+							<h1 class="px-2 text-sm">Date du décès: {{ new Date(pet.date_deces).toLocaleDateString() }}</h1>
 						</div>
 					</div>
 				</div>
@@ -137,25 +166,40 @@ const deletePet = (id) => {
 					</TabList>
 
 					<TabPanels>
-						<TabPanel
-							:class="['rounded-b-md shadow-md bg-white p-3', 'ring-white/60 ring-offset-2 focus:outline-none']">
+						<TabPanel :class="['rounded-b-md shadow-md bg-white p-3', 'ring-white/60 ring-offset-2 focus:outline-none']">
 							<VaccinationsTable :pet="pet" />
 						</TabPanel>
-						<TabPanel
-							:class="['rounded-b-md shadow-md bg-white p-3', 'ring-white/60 ring-offset-2 focus:outline-none']">
+						<TabPanel :class="['rounded-b-md shadow-md bg-white p-3', 'ring-white/60 ring-offset-2 focus:outline-none']">
 							<MedicalHistoryTable :pet="pet" />
 						</TabPanel>
-						<TabPanel
-							:class="['rounded-b-md shadow-md bg-white p-3', 'ring-white/60 ring-offset-2 focus:outline-none']">
+						<TabPanel :class="['rounded-b-md shadow-md bg-white p-3', 'ring-white/60 ring-offset-2 focus:outline-none']">
 							<MedicationsTable :pet="pet" />
 						</TabPanel>
-						<TabPanel
-							:class="['rounded-b-md shadow-md bg-white p-3', 'ring-white/60 ring-offset-2 focus:outline-none']">
+						<TabPanel :class="['rounded-b-md shadow-md bg-white p-3', 'ring-white/60 ring-offset-2 focus:outline-none']">
 							<SurgicalHistoryTable :pet="pet" />
 						</TabPanel>
-						<TabPanel
-							:class="['rounded-b-md shadow-md bg-white p-3', 'ring-white/60 ring-offset-2 focus:outline-none']">
+						<TabPanel :class="['rounded-b-md shadow-md bg-white p-3', 'ring-white/60 ring-offset-2 focus:outline-none']">
 							<GalleryTable :pet="pet" />
+						</TabPanel>
+						<TabPanel :class="['rounded-b-md shadow-md bg-white p-3', 'ring-white/60 ring-offset-2 focus:outline-none']">
+							<div>
+								<h3 class="text-lg font-semibold mb-4">Historique des SMS envoyés</h3>
+								<table class="min-w-full text-sm text-left text-gray-700">
+									<thead>
+										<tr>
+											<th class="px-4 py-2">Date d'envoi</th>
+											<th class="px-4 py-2">Message</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr v-for="log in smsLogs" :key="log.id">
+											<td class="px-4 py-2">{{ log.sent_at ? new Date(log.sent_at).toLocaleString() : '' }}</td>
+											<td class="px-4 py-2 whitespace-pre-line">{{ log.message }}</td>
+										</tr>
+									</tbody>
+								</table>
+								<div v-if="!smsLogs || smsLogs.length === 0" class="text-gray-500 mt-4">Aucun SMS envoyé pour cet animal.</div>
+							</div>
 						</TabPanel>
 					</TabPanels>
 				</TabGroup>

@@ -9,11 +9,11 @@ export const validateForm = (histories) => {
 	for (let i = 0; i < histories.length; i++) {
 		const history = histories[i];
 
-		// Validate condition
+		// Validate condition (must be one of the allowed values)
 		if (!history.condition || !history.condition.trim()) {
 			errors.value[`histories[${i}].condition`] = 'This field is required.';
-		} else if (history.condition.length > 255) {
-			errors.value[`histories[${i}].condition`] = 'This field must not exceed 255 characters.';
+		} else if (!['Visite', 'Opération', 'Urgence'].includes(history.condition)) {
+			errors.value[`histories[${i}].condition`] = 'Invalid condition selected.';
 		}
 
 		// Validate diagnosis_date
@@ -26,6 +26,13 @@ export const validateForm = (histories) => {
 		// Validate treatment (optional)
 		if (history.treatment && history.treatment.length > 255) {
 			errors.value[`histories[${i}].treatment`] = 'This field must not exceed 255 characters.';
+		}
+
+		// Validate weight_g (optional, must be positive integer)
+		if (history.weight_g) {
+			if (!Number.isInteger(Number(history.weight_g)) || Number(history.weight_g) < 0) {
+				errors.value[`histories[${i}].weight_g`] = 'Weight must be a positive number.';
+			}
 		}
 
 		// Validate notes (optional)

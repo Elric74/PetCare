@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
 
 class Pet extends Model
 {
@@ -17,11 +18,23 @@ class Pet extends Model
 		'name',
 		'species_id',
 		'breed_id',
-		'age',
+		'birth_date',
 		'gender',
+		'is_sterilized',
+		'sterilized_at',
+		'decedee',
+		'date_deces',
+		'chip_number',
 		'client_id',
 		'photo'
 	];
+
+	protected $casts = [
+		'is_sterilized' => 'boolean',
+		'sterilized_at' => 'date',
+	];
+
+	protected $appends = ['age_years_months'];
 
 	protected function performInsert(Builder $query)
 	{
@@ -75,5 +88,27 @@ class Pet extends Model
 		public function images()
 		{
 			return $this->hasMany(Image::class);
+		}
+
+		public function getAgeYearsMonthsAttribute()
+		{
+			if (! $this->birth_date) {
+				return null;
+			}
+
+			$birth = Carbon::parse($this->birth_date);
+			$now = Carbon::now();
+			$years = $birth->diffInYears($now);
+			$months = $birth->copy()->addYears($years)->diffInMonths($now);
+
+			$parts = [];
+			if ($years > 0) {
+				$parts[] = $years . ' year' . ($years > 1 ? 's' : '');
+			}
+			if ($months > 0) {
+				$parts[] = $months . ' month' . ($months > 1 ? 's' : '');
+			}
+
+			return count($parts) ? implode(' / ', $parts) : '0 month';
 		}
 }

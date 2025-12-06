@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Pet;
 use App\Models\Vaccination;
+use App\Models\Vaccine;
 
 class VaccinationService
 {
@@ -49,5 +50,11 @@ class VaccinationService
       'message' => 'Vaccination successfully deleted!',
       'status' => 200
     ];
+  }
+
+  public function fetchVaccinesBySpecies($speciesId)
+  {
+    $vaccines = Vaccine::where('species_id', $speciesId)->get(['id', 'name']);
+    return $vaccines;
   }
 }

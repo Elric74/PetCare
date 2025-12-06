@@ -1,5 +1,5 @@
 <script setup>
-import { ref, defineProps, onMounted } from 'vue'
+import { ref, defineProps, onMounted, watch } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 import { useToast } from "vue-toastification"
 import { PlusIcon, TrashIcon } from "@heroicons/vue/24/outline/index.js";
@@ -18,17 +18,135 @@ const props = defineProps({
 	}
 })
 
+const vaccinesOptions = ref([])
+
+const fetchVaccineOptions = async () => {
+	try {
+		if (!pet.species_id) return;
+		const response = await axios.get(`/pets/vaccines/${pet.species_id}`, { headers: { Accept: 'application/json' } });
+		vaccinesOptions.value = response.data || [];
+	} catch (e) {
+		vaccinesOptions.value = [];
+	}
+}
+
 onMounted(async () => {
 	await fetchVaccinations()
+	await fetchVaccineOptions()
 	watchFields(vaccinationsForm.value);
 })
 
+watch(() => pet.species_id, async () => {
+	await fetchVaccineOptions()
+})
+
+const computeReminderDate = (vaccination) => {
+	try {
+		if (!vaccination.administered_at) return null;
+		const base = moment(vaccination.administered_at, 'YYYY-MM-DD');
+		if (!base.isValid()) return null;
+
+		const interval = vaccination.reminder_interval || '1y';
+		let result = null;
+		if (interval === '1m') {
+			result = base.add(1, 'months');
+		} else if (interval === '1y') {
+			result = base.add(1, 'years');
+		} else if (interval === '3y') {
+			result = base.add(3, 'years');
+		}
+
+		return result ? result.format('YYYY-MM-DD') : null;
+	} catch (e) {
+		return null;
+	}
+}
+
+const deduceReminderInterval = (vaccination) => {
+	try {
+		if (!vaccination.administered_at || !vaccination.reminder_date) return '1y';
+		
+		const administered = moment(vaccination.administered_at, 'YYYY-MM-DD');
+		const reminder = moment(vaccination.reminder_date, 'YYYY-MM-DD');
+		
+		if (!administered.isValid() || !reminder.isValid()) return '1y';
+		
+		const monthsDiff = reminder.diff(administered, 'months');
+		const yearsDiff = reminder.diff(administered, 'years');
+		
+		// Tolérance de quelques jours pour les variations de mois
+		if (Math.abs(monthsDiff - 1) <= 0.2) return '1m';
+		if (Math.abs(yearsDiff - 1) <= 0.1) return '1y';
+		if (Math.abs(yearsDiff - 3) <= 0.1) return '3y';
+		
+		// Par défaut, choisir le plus proche
+		if (monthsDiff < 6) return '1m';
+		if (yearsDiff < 2) return '1y';
+		return '3y';
+	} catch (e) {
+		return '1y';
+	}
+}
+
+const getReminderColorClass = (reminderDate) => {
+	if (!reminderDate) return '';
+	
+	const today = moment();
+	const reminder = moment(reminderDate);
+	const thirtyDaysAgo = today.clone().subtract(30, 'days');
+	
+	if (!reminder.isValid()) return '';
+	
+	// Vert pâle : rappel dans le futur (pas encore à faire)
+	if (reminder.isAfter(today)) {
+		return 'bg-green-50';
+	}
+	
+	// Bleu pâle : rappel aujourd'hui ou très récent (dans les 30 derniers jours)
+	if (reminder.isSameOrAfter(thirtyDaysAgo) && reminder.isSameOrBefore(today)) {
+		return 'bg-blue-50';
+	}
+	
+	// Rouge pâle : rappel en retard de plus de 30 jours
+	return 'bg-red-50';
+}
+
+const getReminderStyle = (reminderDate) => {
+	if (!reminderDate) return {};
+	
+	const today = moment();
+	const reminder = moment(reminderDate);
+	const thirtyDaysFromNow = today.clone().add(30, 'days');
+	const thirtyDaysAgo = today.clone().subtract(30, 'days');
+	
+	if (!reminder.isValid()) return {};
+	
+	// Bleu pâle : rappel dans le futur à plus de 30 jours
+	if (reminder.isAfter(thirtyDaysFromNow)) {
+		return { backgroundColor: '#dbeafe' }; // blue-100
+	}
+	
+	// Vert pâle : rappel entre maintenant et +30 jours (à venir bientôt)
+	if (reminder.isAfter(today) && reminder.isSameOrBefore(thirtyDaysFromNow)) {
+		return { backgroundColor: '#dcfce7' }; // green-100
+	}
+	
+	// Rouge plus visible : rappel dépassé de moins de 30 jours
+	if (reminder.isSameOrAfter(thirtyDaysAgo) && reminder.isSameOrBefore(today)) {
+		return { backgroundColor: '#fecaca' }; // red-200
+	}
+	
+	// Violet encore plus visible : rappel largement dépassé (plus de 30 jours)
+	return { backgroundColor: '#d8b4fe' }; // purple-300
+}
+
 const vaccinationsForm = ref([
-	{ vaccine_name: '', administered_at: '', batch_number: '', administering_veterinarian: '', notes: '' }
+	{ vaccine_name: '', administered_at: moment().format('YYYY-MM-DD'), batch_number: '', administering_veterinarian: 'Nathalie Staffe', reminder_interval: '1y', reminder_date: computeReminderDate({ administered_at: moment().format('YYYY-MM-DD'), reminder_interval: '1y' }), notes: '' }
 ]);
 
 const addVaccination = () => {
-	vaccinationsForm.value.push({ pet_id: '', vaccine_name: '', administered_at: '', batch_number: '', administering_veterinarian: '', notes: '' });
+	const administered = moment().format('YYYY-MM-DD');
+	vaccinationsForm.value.push({ pet_id: '', vaccine_name: '', administered_at: administered, batch_number: '', administering_veterinarian: 'Nathalie Staffe', reminder_interval: '1y', reminder_date: computeReminderDate({ administered_at: administered, reminder_interval: '1y' }), notes: '' });
 };
 
 const deleteVaccination = async (index) => {
@@ -70,6 +188,15 @@ const storeVaccination = async () => {
 		} else {
 			delete vaccination.administered_at;
 		}
+
+		// Ensure reminder_date is present/formatted when possible
+		if (vaccination.reminder_date) {
+			vaccination.reminder_date = moment(vaccination.reminder_date).format('YYYY-MM-DD');
+		} else {
+			// compute from interval if available
+			const computed = computeReminderDate(vaccination);
+			if (computed) vaccination.reminder_date = computed;
+		}
 	});
 
 	const response = await axios.post(`/pets/${pet.id}/vaccinations`, submitData, {
@@ -98,10 +225,32 @@ const storeVaccination = async () => {
 
 const fetchVaccinations = async () => {
 	const response = await axios.get(`/pets/${pet.id}/vaccinations`);
-	vaccinationsForm.value = response.data;
+	vaccinationsForm.value = response.data || [];
 
+	// Normalize fetched entries to include reminder fields and defaults
 	if (vaccinationsForm.value.length === 0) {
-		vaccinationsForm.value.push({ vaccine_name: '', administered_at: '', batch_number: '', administering_veterinarian: '', notes: '' });
+		vaccinationsForm.value.push({ vaccine_name: '', administered_at: moment().format('YYYY-MM-DD'), batch_number: '', administering_veterinarian: 'Nathalie Staffe', reminder_interval: '1y', reminder_date: computeReminderDate({ administered_at: moment().format('YYYY-MM-DD'), reminder_interval: '1y' }), notes: '' });
+	} else {
+		vaccinationsForm.value = vaccinationsForm.value.map((v) => {
+			v.administered_at = v.administered_at ? moment(v.administered_at).format('YYYY-MM-DD') : moment().format('YYYY-MM-DD');
+			
+			// Déduire l'intervalle à partir des dates si elles existent
+			if (v.reminder_date && v.administered_at) {
+				v.reminder_interval = deduceReminderInterval(v);
+			} else {
+				v.reminder_interval = v.reminder_interval || '1y';
+			}
+			
+			v.reminder_date = v.reminder_date ? moment(v.reminder_date).format('YYYY-MM-DD') : computeReminderDate(v);
+			return v;
+		});
+		
+		// Trier par ordre anti-chronologique (plus récent en premier)
+		vaccinationsForm.value.sort((a, b) => {
+			const dateA = moment(a.administered_at);
+			const dateB = moment(b.administered_at);
+			return dateB - dateA; // ordre décroissant
+		});
 	}
 };
 </script>
@@ -122,10 +271,22 @@ const fetchVaccinations = async () => {
 			<div v-for="(vaccination, index) in vaccinationsForm" :key="index" class="grid grid-cols-12 gap-5 mb-5 p-5">
 				<div class=" col-span-12 md:col-span-6 lg:col-span-2">
 					<label for="vaccine_name" class="mb-2 block text-sm font-medium text-gray-500">Vaccine Name</label>
-					<input v-model="vaccination.vaccine_name" name="vaccine_name" id="vaccine_name"
-						placeholder="Vaccine Name"
-						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
-						:class="{ 'border-red-500': errors[`vaccinations[${index}].vaccine_name`] }">
+					<template v-if="vaccinesOptions && vaccinesOptions.length > 0">
+						<select v-model="vaccination.vaccine_name" name="vaccine_name" id="vaccine_name"
+							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
+							:class="{ 'border-red-500': errors[`vaccinations[${index}].vaccine_name`] }">
+							<option value="">-- Select Vaccine --</option>
+							<option v-for="vaccine in vaccinesOptions" :key="vaccine.id" :value="vaccine.name">
+								{{ vaccine.name }}
+							</option>
+						</select>
+					</template>
+					<template v-else>
+						<input v-model="vaccination.vaccine_name" name="vaccine_name" id="vaccine_name"
+							placeholder="Vaccine Name"
+							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
+							:class="{ 'border-red-500': errors[`vaccinations[${index}].vaccine_name`] }">
+					</template>
 					<span class="text-red-500 text-xs">{{ errors[`vaccinations[${index}].vaccine_name`] }}</span>
 				</div>
 
@@ -133,29 +294,28 @@ const fetchVaccinations = async () => {
 					<label for="administered_at" class="mb-2 block text-sm font-medium text-gray-500">Date</label>
 					<input type="date" v-model="vaccination.administered_at"
 						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
-						:class="{ 'border-red-500': errors[`vaccinations[${index}].administered_at`] }">
+						:class="{ 'border-red-500': errors[`vaccinations[${index}].administered_at`] }"
+						@change="(e) => { vaccination.administered_at = e.target.value; vaccination.reminder_date = computeReminderDate(vaccination); }">
 					<span class="text-red-500 text-xs">{{ errors[`vaccinations[${index}].administered_at`] }}</span>
 				</div>
 
 				<div class="col-span-12 md:col-span-6 lg:col-span-2">
-					<label for="batch_number" class="mb-2 block text-sm font-medium text-gray-500">Batch Number</label>
-					<input v-model="vaccination.batch_number" name="batch_number" id="batch_number"
-						placeholder="Batch Number"
+					<label for="reminder_interval" class="mb-2 block text-sm font-medium text-gray-500">Rappel</label>
+					<select v-model="vaccination.reminder_interval" name="reminder_interval" id="reminder_interval"
 						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
-						:class="{ 'border-red-500': errors[`vaccinations[${index}].batch_number`] }">
-					<span class="text-red-500 text-xs">{{ errors[`vaccinations[${index}].batch_number`] }}</span>
+						@change="() => { vaccination.reminder_date = computeReminderDate(vaccination); }">
+						<option value="1m">1 mois</option>
+						<option value="1y">1 an</option>
+						<option value="3y">3 ans</option>
+					</select>
+					<input type="date" v-model="vaccination.reminder_date" readonly
+						:style="getReminderStyle(vaccination.reminder_date)"
+						class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm" />
+					<span class="text-red-500 text-xs">{{ errors[`vaccinations[${index}].reminder_date`] }}</span>
 				</div>
 
-				<div class="col-span-12 md:col-span-6 lg:col-span-2">
-					<label for="administering_veterinarian"
-						class="mb-2 block text-sm font-medium text-gray-500">Administering Veterinarian</label>
-					<input v-model="vaccination.administering_veterinarian" name="administering_veterinarian"
-						id="administering_veterinarian" placeholder="Administering Veterinarian"
-						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
-						:class="{ 'border-red-500': errors[`vaccinations[${index}].administering_veterinarian`] }">
-					<span
-						class="text-red-500 text-xs">{{ errors[`vaccinations[${index}].administering_veterinarian`] }}</span>
-				</div>
+
+
 
 				<div class="col-span-12 md:col-span-6 lg:col-span-3">
 					<label for="notes" class="mb-2 block text-sm font-medium text-gray-500">Notes</label>

@@ -12,6 +12,8 @@ class Image extends Model
 
     protected $table = "images";
 
+    protected $fillable = ['pet_id', 'path'];
+
     public function pet(): BelongsTo
 	{
 		return $this->belongsTo(Pet::class);

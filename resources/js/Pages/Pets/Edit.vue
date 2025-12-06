@@ -1,10 +1,11 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { ref, watch, nextTick, defineProps, onMounted, reactive } from 'vue'
+import { ref, watch, nextTick, defineProps, onMounted, onUnmounted, reactive } from 'vue'
 import { usePage } from "@inertiajs/vue3"
 import VueMultiselect from 'vue-multiselect'
 import 'vue-multiselect/dist/vue-multiselect.css'
 import { useToast } from "vue-toastification"
+import { useI18n } from 'vue-i18n';
 import { TabGroup, TabList, Tab, TabPanels, TabPanel } from '@headlessui/vue'
 import VaccinationsForm from '@/Pages/Pets/Partials/VaccinationsForm.vue'
 import MedicationsForm from '@/Pages/Pets/Partials/MedicationsForm.vue'
@@ -12,7 +13,6 @@ import MedicalHistoriesForm from '@/Pages/Pets/Partials/MedicalHistoriesForm.vue
 import SurgicalHistoriesForm from '@/Pages/Pets/Partials/SurgicalHistoriesForm.vue'
 import Gallery from '@/Pages/Pets/Partials/Gallery.vue'
 import { validateForm, errors, watchFields } from '@/Validation/Pets/Index'
-
 const isSubmitting = ref(false)
 const selectedUser = ref(null)
 const matchingUsers = ref([])
@@ -22,9 +22,26 @@ const matchingSpecies = ref([])
 const matchingBreeds = ref([])
 const loadingBreeds = ref(false)
 const selectedFile = ref(null)
-const tabs = ref(['Vaccinations', 'Medical History', 'Medications', 'Surgical History', 'Gallery'])
 const toast = useToast()
+const { t } = useI18n();
+const tabs = ref([
+	t('pets_tabs.vaccinations'),
+	t('pets_tabs.medical_history'),
+	t('pets_tabs.medications'),
+	t('pets_tabs.surgical_history'),
+	t('pets_tabs.gallery'),
+])
 const newImage = ref(null)
+const videoRef = ref(null)
+const canvasRef = ref(null)
+const webcamActive = ref(false)
+const webcamLoading = ref(false)
+const cameraStream = ref(null)
+const hidDevice = ref(null)
+const hidSupported = ref(false)
+const AUTO_VENDOR = 1008
+const AUTO_PRODUCT = 59399
+const AUTO_REPORT_ID = 0
 
 const { pet } = usePage().props
 
@@ -39,15 +56,20 @@ const props = defineProps({
 // Initialize the form with the pet data
 const editForm = reactive({
 	name: props.pet.name,
+	chip_number: props.pet.chip_number,
 	species_id: props.pet.species_id,
 	breed_id: props.pet.breed_id,
-	age: props.pet.age,
+	birth_date: props.pet.birth_date,
 	gender: props.pet.gender,
+	is_sterilized: !!props.pet.is_sterilized,
+	sterilized_at: props.pet.sterilized_at ? props.pet.sterilized_at.slice(0,10) : null,
 	photo: {
 		file: null,
 		url: props.pet.photo
 	},
-	client_id: props.pet.client_id
+	client_id: props.pet.client_id,
+	decedee: !!props.pet.decedee,
+	date_deces: props.pet.date_deces ? props.pet.date_deces.slice(0,10) : null,
 })
 
 // Set the initial values for the multiselect components
@@ -80,7 +102,7 @@ const handleFileChange = (event) => {
 const handleFileDrop = (event) => {
 	selectedFile.value = event.dataTransfer.files[0];
 
-	// Update the createForm’s photo property with the URL for display purposes
+	// Update the createForm's photo property with the URL for display purposes
 	if (selectedFile.value) {
 		newImage.value = URL.createObjectURL(selectedFile.value);
 	}
@@ -103,12 +125,13 @@ const editPet = async () => {
 
 	// If there are any errors, don't submit the form
 	if (Object.keys(errors.value).length > 0) {
-		toast.error("Please correct the errors in the form.");
+		toast.error(t('common_messages.correct_errors'));
 		isSubmitting.value = false;
 		return;
 	}
 
   const formData = new FormData();
+	// Keep POST as backend route supports POST for updates
 
   let submitData = { ...editForm, ...editForm.value };
 	submitData.species_id = selectedSpecies.value ? selectedSpecies.value.id : null;
@@ -118,25 +141,38 @@ const editPet = async () => {
   // Append each property of submitData to formData
   for (let property in submitData) {
     if (submitData[property] !== null && submitData[property] !== '') {
-      if (property === 'photo' && submitData.photo && submitData.photo.file instanceof File) {
+			if (property === 'photo' && submitData.photo && submitData.photo.file instanceof File) {
         // Include the photo field only if a new photo file has been selected
         formData.append(property, submitData.photo.file);
-      } else if (property !== 'photo') {
+			} else if (property !== 'photo') {
         // Append other properties to formData
-        formData.append(property, submitData[property]);
+				// Convert boolean to 0/1 for server
+				if (typeof submitData[property] === 'boolean') {
+					formData.append(property, submitData[property] ? 1 : 0);
+				} else {
+					formData.append(property, submitData[property]);
+				}
       }
     }
   }
 
-  const response = await axios.post(`/pets/${pet.id}`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  })
+	try {
+		const response = await axios.post(`/pets/${pet.id}`, formData);
 
-  toast.success(response.data.message)
-
-  isSubmitting.value = false;
+		toast.success(response.data.message)
+	} catch (error) {
+		if (error.response && error.response.status === 422) {
+			const respErrors = error.response.data.errors || {};
+			Object.keys(respErrors).forEach(key => {
+				errors.value[key] = Array.isArray(respErrors[key]) ? respErrors[key][0] : respErrors[key];
+			});
+			toast.error(t('common_messages.correct_errors'))
+		} else {
+			toast.error(error.message || 'An unexpected error occurred')
+		}
+	} finally {
+		isSubmitting.value = false;
+	}
 }
 
 const fetchSpecies = async (query) => {
@@ -214,45 +250,212 @@ watch(selectedBreed, () => {
 	}
 })
 
-onMounted(async () => {
-	errors.value = {}
-	await fetchAllClients()
-	await fetchAllSpecies()
-	await fetchAllBreeds()
-	watchFields(editForm);
+// When marking a pet as deceased, default the death date to today if empty
+watch(() => editForm.decedee, (newVal) => {
+	if (newVal && !editForm.date_deces) {
+		editForm.date_deces = new Date().toISOString().slice(0,10);
+	} else if (!newVal) {
+		editForm.date_deces = null
+	}
+})
+
+// When toggling sterilization, default date if missing
+watch(() => editForm.is_sterilized, (newVal) => {
+	if (newVal && !editForm.sterilized_at) {
+		editForm.sterilized_at = new Date().toISOString().slice(0,10);
+	} else if (!newVal) {
+		editForm.sterilized_at = null
+	}
+})
+
+const requestHidDevice = async () => {
+	if (!navigator.hid) {
+		hidSupported.value = false
+		return
+	}
+	
+	hidSupported.value = true
+	
+	try {
+		const devices = await navigator.hid.requestDevice({
+			filters: [{ vendorId: AUTO_VENDOR, productId: AUTO_PRODUCT }]
+		})
+		
+		if (devices.length > 0) {
+			hidDevice.value = devices[0]
+			await hidDevice.value.open()
+			
+			hidDevice.value.addEventListener('inputreport', (event) => {
+				if (event.reportId === AUTO_REPORT_ID) {
+					captureWebcamPhoto()
+				}
+			})
+		}
+	} catch (error) {
+		console.log('HID device request error:', error)
+	}
+}
+
+const closeHidDevice = async () => {
+	if (hidDevice.value) {
+		try {
+			await hidDevice.value.close()
+		} catch (error) {
+			console.log('HID device close error:', error)
+		}
+		hidDevice.value = null
+	}
+}
+
+const startWebcam = async () => {
+	try {
+		webcamLoading.value = true
+		const stream = await navigator.mediaDevices.getUserMedia({
+			video: { facingMode: 'user' },
+			audio: false
+		})
+		cameraStream.value = stream
+		webcamActive.value = true
+		
+		// Wait for Vue to update the DOM and then set the video source
+		await nextTick()
+		
+		if (videoRef.value) {
+			videoRef.value.srcObject = stream
+			// Wait for video to start playing
+			await videoRef.value.play()
+		}
+		
+		webcamLoading.value = false
+		
+		// Request HID device permission for webcam button
+		await requestHidDevice()
+	} catch (error) {
+		toast.error('Impossible d\'accéder à la webcam: ' + error.message)
+		webcamLoading.value = false
+	}
+}
+
+const stopWebcam = () => {
+	if (cameraStream.value) {
+		cameraStream.value.getTracks().forEach(track => track.stop())
+		cameraStream.value = null
+		webcamActive.value = false
+	}
+	closeHidDevice()
+}
+
+const captureWebcamPhoto = async () => {
+	if (!videoRef.value || !canvasRef.value) {
+		toast.error('Webcam non prête')
+		return
+	}
+
+	try {
+		const video = videoRef.value
+		const canvas = canvasRef.value
+		
+		// Set canvas dimensions to match video
+		canvas.width = video.videoWidth
+		canvas.height = video.videoHeight
+		if (canvas.width === 0 || canvas.height === 0) {
+			toast.error('Erreur: la vidéo n\'a pas encore chargé complètement')
+			return
+		}
+		
+		const context = canvas.getContext('2d')
+		context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+		// Convert canvas to blob and create file
+		const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+		if (!blob) {
+			toast.error('Erreur lors de la conversion de l\'image')
+			return
+		}
+		
+		const file = new File([blob], `webcam-photo-${Date.now()}.png`, { type: 'image/png' })
+		selectedFile.value = file
+		editForm.photo = {
+			file: file,
+			url: URL.createObjectURL(file)
+		}
+		stopWebcam()
+		toast.success('Photo capturée avec succès')
+	} catch (e) {
+		toast.error(e.message || 'Erreur lors de la capture de la photo')
+	}
+}
+
+const handleWebcamButton = (event) => {
+	// Le bouton photo envoie généralement:
+	// - Code 'CameraFocus' ou 'Camera'
+	// - Ou la touche ' ' (espace)
+	// On capture aussi Ctrl+Shift+P qui est un raccourci commun
+	if (
+		event.code === 'CameraFocus' || 
+		event.code === 'Camera' ||
+		event.code === 'Space' ||
+		(event.ctrlKey && event.shiftKey && event.code === 'KeyP')
+	) {
+		event.preventDefault()
+		if (webcamActive.value) {
+			captureWebcamPhoto()
+		}
+	}
+}
+
+onUnmounted(() => {
+	// Nettoyer les ressources
+	stopWebcam()
+	closeHidDevice()
+	window.removeEventListener('keydown', handleWebcamButton)
+})
+
+onMounted(() => {
+	window.addEventListener('keydown', handleWebcamButton)
 })
 
 </script>
 
 <template>
-	<AppLayout title="Edit Pet">
-		<template #header>
-			<h2 class="text-lg font-semibold leading-6 text-gray-900">
-				Edit Pet: {{ pet.name }}
-			</h2>
-		</template>
+	<AppLayout :title="t('pets.edit_pet')">
+			<template #header>
+				<h2 class="text-lg font-semibold leading-6 text-gray-900">
+					{{ t('pets.edit_pet') }}: {{ pet.name }}
+				</h2>
+			</template>
 
 		<div class="max-w-full bg-white p-5 rounded-md">
 			<form @submit.prevent="editPet" enctype="multipart/form-data" class="space-y-5">
 				<div class="grid grid-cols-12 gap-5">
-					<div class="col-span-6">
-						<label for="name" class="mb-2 block text-sm font-medium text-gray-500">Name</label>
+					<div class="col-span-12 md:col-span-6">
+						<label for="name" class="mb-2 block text-sm font-medium text-gray-500">{{ t('pets.name') }}</label>
 						<input v-model="editForm.name" type="text" id="name"
 							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
 							:class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500': errors.name }"
-							placeholder="Pet Name" />
+							:placeholder="t('pets.name')" />
 						<div v-if="errors.name" class="text-sm text-red-500 mt-1">
 							{{ errors.name }}
 						</div>
 					</div>
-					<div class="col-span-6">
-						<label for="client_id" class="mb-2 block text-sm font-medium text-gray-500">Client</label>
+					<div class="col-span-12 md:col-span-6">
+						<label for="chip_number" class="mb-2 block text-sm font-medium text-gray-500">{{ t('pets.chip_number') }}</label>
+						<input v-model="editForm.chip_number" type="text" id="chip_number"
+							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
+							:class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500': errors.chip_number }"
+							:placeholder="t('pets.chip_number')" />
+						<div v-if="errors.chip_number" class="text-sm text-red-500 mt-1">
+							{{ errors.chip_number }}
+						</div>
+					</div>
+					<div class="col-span-12">
+						<label for="client_id" class="mb-2 block text-sm font-medium text-gray-500">{{ t('pets.client') }}</label>
 						<VueMultiselect v-model="selectedUser"
 							:class="{ 'error': errors.client_id }"
 							:options="matchingUsers" :multiple="false" :clear-on-select="true" placeholder="Type to search" label="name"
 							track-by="id" @search-change="fetchUsers" @input="setUserId">
 							<template #noResult>
-								Oops! No users found. Try a different search query.
+								{{ t('common.no_users_found') }}
 							</template>
 						</VueMultiselect>
 						<div v-if="errors.client_id" class="text-sm text-red-500 mt-1">
@@ -260,50 +463,88 @@ onMounted(async () => {
 						</div>
 					</div>
 
-					<div class="col-span-12 sm:col-span-6">
-						<label for="species" class="mb-2 block text-sm font-medium text-gray-500">Species</label>
+					<div class="col-span-12 md:col-span-6">
+						<label for="species" class="mb-2 block text-sm font-medium text-gray-500">{{ t('pets.species') }}</label>
 						<VueMultiselect v-model="selectedSpecies"
 							:class="{ 'error': errors.species_id }"
 							:options="matchingSpecies" :multiple="false" :clear-on-select="true" placeholder="Type to search"
 							label="name" track-by="id" @search-change="fetchSpecies" @input="setSpeciesId">
 							<template #noResult>
-								Oops! No species found. Try a different search query.
+								{{ t('common.no_species_found') }}
 							</template>
 						</VueMultiselect>
 						<div v-if="errors.species_id" class="text-sm text-red-500 mt-1">
 							{{ errors.species_id }}
 						</div>
 					</div>
-					<div class="col-span-12 sm:col-span-6">
-						<label for="breed" class="mb-2 block text-sm font-medium text-gray-500">Breed</label>
+					<div class="col-span-12 md:col-span-6">
+						<label for="breed" class="mb-2 block text-sm font-medium text-gray-500">{{ t('pets.breed') }}</label>
 						<VueMultiselect v-model="selectedBreed" :options="matchingBreeds" :multiple="false" :clear-on-select="true"
-							placeholder="Type to search" label="name" track-by="id">
+							:placeholder="t('common.type_to_search')" label="name" track-by="id">
 							<template #noResult1>
-								Oops! No breeds found. Try a different search query.
+								{{ t('common.no_breeds_found') }}
 							</template>
 						</VueMultiselect>
 					</div>
 
-					<div class="col-span-8 sm:col-span-10">
-						<label for="gender" class="mb-2 block text-sm font-medium text-gray-500">Gender</label>
+					<div class="col-span-12 md:col-span-6">
+						<label for="gender" class="mb-2 block text-sm font-medium text-gray-500">{{ t('pets.gender') }}</label>
 						<select v-model="editForm.gender" id="gender"
 							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50">
-							<option disabled selected>Select Gender</option>
-							<option value="male">Male</option>
-							<option value="female">Female</option>
-							<option value="none">None</option>
+							<option disabled value="">{{ t('common.select_gender') }}</option>
+							<option value="Femelle">Femelle</option>
+							<option value="Male">Male</option>
+							<option value="À déterminer">À déterminer</option>
 						</select>
 					</div>
-					<div class="col-span-4 sm:col-span-2">
-						<label for="age" class="mb-2 block text-sm font-medium text-gray-500">Age</label>
-						<input v-model="editForm.age" type="number" id="age"
+					<div class="col-span-12 md:col-span-3">
+						<label for="is_sterilized" class="mb-2 block text-sm font-medium text-gray-500">Stérilisé(e)</label>
+						<div class="flex items-center space-x-3 h-10">
+							<input type="checkbox" id="is_sterilized" v-model="editForm.is_sterilized" class="h-4 w-4 text-indigo-600 border-gray-300 rounded" />
+							<label for="is_sterilized" class="mb-0 block text-sm font-medium text-gray-500">Oui</label>
+						</div>
+					</div>
+					<div class="col-span-12 md:col-span-3" v-if="editForm.is_sterilized">
+						<label for="sterilized_at" class="mb-2 block text-sm font-medium text-gray-500">Date stérilisation</label>
+						<input v-model="editForm.sterilized_at" type="date" id="sterilized_at"
+							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50" />
+						<div v-if="errors.sterilized_at" class="text-sm text-red-500 mt-1">
+							{{ errors.sterilized_at }}
+						</div>
+					</div>
+
+					<div class="col-span-12 md:col-span-3">
+						<label for="birth_date" class="mb-2 block text-sm font-medium text-gray-500">{{ t('pets.birth_date') }}</label>
+						<input v-model="editForm.birth_date" type="date" id="birth_date"
 							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
-							placeholder="1" />
+							:placeholder="t('pets.birth_date')" />
+						<div v-if="errors.birth_date" class="text-sm text-red-500 mt-1">
+							{{ errors.birth_date }}
+						</div>
+					</div>
+					<div class="col-span-12 md:col-span-3">
+						<label class="mb-2 block text-sm font-medium text-gray-500">Âge</label>
+						<div class="block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+							{{ pet.age_years_months || 'N/A' }}
+						</div>
+					</div>
+					<div class="col-span-12 md:col-span-3">
+						<label for="decedee" class="mb-2 block text-sm font-medium text-gray-500">Décès</label>
+						<div class="flex items-center space-x-3 h-10">
+							<input type="checkbox" id="decedee" v-model="editForm.decedee" class="h-4 w-4 text-indigo-600 border-gray-300 rounded" />
+							<label for="decedee" class="mb-0 block text-sm font-medium text-gray-500">Oui</label>
+						</div>
+					</div>
+					<div class="col-span-12 md:col-span-3" v-if="editForm.decedee">
+						<label for="date_deces" class="mb-2 block text-sm font-medium text-gray-500">Date du décès</label>
+						<input v-model="editForm.date_deces" type="date" id="date_deces"
+							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50"
+						/>
 					</div>
 
 					<div class="col-span-12">
 						<div class="mx-auto max-w-full">
-							<label for="photo" class="mb-2 block text-sm font-medium text-gray-500">Pet Photo</label>
+							<label for="photo" class="mb-2 block text-sm font-medium text-gray-500">{{ t('pets.photo') }}</label>
 							<label @dragover.prevent @drop.prevent="handleFileDrop"
 								class="flex w-full cursor-pointer appearance-none items-center justify-center rounded-md border-2 border-dashed border-gray-200 p-6 transition-all hover:border-indigo-700"
 								:class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500': errors.photo }">
@@ -320,12 +561,12 @@ onMounted(async () => {
 										</div>
 									</div>
 									<div class="text-gray-600">
-										<a href="#" class="font-medium text-indigo-500 hover:text-indigo-700">Click to upload</a> or drag and
+										<a href="#" class="font-medium text-indigo-500 hover:text-indigo-700">{{ t('common.click_to_upload') }}</a> or drag and
 										drop
 									</div>
-									<p class="text-sm text-gray-500">PNG or JPG (max. 1mb)</p>
+									<p class="text-sm text-gray-500">PNG, JPG or HEIC (max. 4MB)</p>
 								</div>
-								<input @change="handleFileChange" id="photo" name="photo" type="file" class="sr-only" />
+								<input @change="handleFileChange" id="photo" name="photo" type="file" accept=".png,.jpg,.jpeg,.heic,.heif,image/*" class="sr-only" />
 							</label>
 							<div v-if="errors.photo" class="text-sm text-red-500 mt-1">
 								{{ errors.photo }}
@@ -334,9 +575,47 @@ onMounted(async () => {
 					</div>
 
 					<div class="col-span-12">
+						<div class="mx-auto max-w-md">
+							<label class="mb-2 block text-sm font-medium text-gray-500">Webcam</label>
+							<div v-if="!webcamActive" class="flex gap-2">
+								<button type="button" @click="startWebcam" :disabled="webcamLoading"
+									class="flex-1 rounded-lg border border-green-700 bg-green-700 px-4 py-2 text-center text-sm font-medium text-white shadow-sm transition-all hover:border-green-800 hover:bg-green-800 disabled:cursor-not-allowed disabled:border-green-300 disabled:bg-green-300">
+									<span v-if="!webcamLoading">Démarrer</span>
+									<span v-else>Chargement...</span>
+								</button>
+							</div>
+							<div v-else class="space-y-2">
+								<div class="relative bg-black rounded-lg overflow-hidden" style="aspect-ratio: 4 / 3; width: 100%;">
+									<video 
+										ref="videoRef" 
+										autoplay 
+										playsinline 
+										muted 
+										style="width: 100%; height: 100%; object-fit: cover;"
+										class="bg-black">
+									</video>
+								</div>
+								<div class="flex gap-2">
+									<button type="button" @click="stopWebcam"
+										class="flex-1 rounded-lg border border-gray-400 bg-gray-100 px-3 py-2 text-center text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-gray-500 hover:bg-gray-200">
+										Fermer
+									</button>
+									<button type="button" @click="captureWebcamPhoto"
+										class="flex-1 rounded-lg border border-blue-700 bg-blue-700 px-3 py-2 text-center text-4xl font-medium text-white shadow-sm transition-all hover:border-blue-800 hover:bg-blue-800 active:scale-95">
+										📸
+									</button>
+								</div>
+								<p class="text-xs text-gray-600 text-center">Appuie sur Espace pour capturer</p>
+							</div>
+						</div>
+					</div>
+
+					<canvas ref="canvasRef" class="hidden"></canvas>
+
+					<div class="col-span-12">
 						<button type="submit" :disabled="isSubmitting"
 							class="w-full rounded-lg border border-indigo-700 bg-indigo-700 px-8 py-4 text-center text-lg font-medium text-white shadow-sm transition-all hover:border-indigo-800 hover:bg-indigo-800 disabled:cursor-not-allowed disabled:border-indigo-300 disabled:bg-indigo-300">
-							Edit Pet
+							{{ $t('pets.edit') }}
 						</button>
 					</div>
 

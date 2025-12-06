@@ -1,5 +1,5 @@
 <script setup>
-import { ref, defineProps, onMounted } from 'vue'
+import { ref, defineProps, onMounted, watch, nextTick } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 import { useToast } from "vue-toastification"
 import { PlusIcon, TrashIcon } from "@heroicons/vue/24/outline/index.js";
@@ -20,15 +20,47 @@ const props = defineProps({
 
 onMounted(async () => {
 	await fetchMedications()
+	await fetchRecurringTreatments()
 	watchFields(medicationsForm.value);
+	// Ensure notes textareas auto-resize to existing content after initial fetch
+	nextTick(() => autoResizeAll())
 })
 
 const medicationsForm = ref([
-	{ medication_name: '', administered_at: '', dosage: '', frequency: '', administering_veterinarian: '', notes: '' }
+	{ medication_name: '', administered_at: moment().format('YYYY-MM-DD'), frequency: '', administering_veterinarian: 'Nathalie Staffe', notes: '' }
 ]);
 
+const recurringTreatments = ref([])
+
+const fetchRecurringTreatments = async () => {
+	const speciesId = props.pet?.species_id || props.pet?.species?.id || null
+	const url = speciesId ? `/recurring-treatments/by-species/${speciesId}` : '/recurring-treatments/by-species'
+	const resp = await axios.get(url)
+	recurringTreatments.value = resp.data
+}
+
+const computeReminderDate = (administeredAt, frequency) => {
+	if (!administeredAt || !frequency) return ''
+	const d = moment(administeredAt, 'YYYY-MM-DD')
+	switch (frequency) {
+		case '1m':
+			return d.clone().add(1, 'month').format('YYYY-MM-DD')
+		case '3m':
+			return d.clone().add(3, 'months').format('YYYY-MM-DD')
+		case '6m':
+			return d.clone().add(6, 'months').format('YYYY-MM-DD')
+		case '1y':
+			return d.clone().add(1, 'year').format('YYYY-MM-DD')
+		case '2y':
+			return d.clone().add(2, 'years').format('YYYY-MM-DD')
+		default:
+			return ''
+	}
+}
+
 const addMedication = () => {
-	medicationsForm.value.push({ pet_id: '', medication_name: '', administered_at: '', dosage: '', frequency: '', administering_veterinarian: '', notes: '' });
+	const newItem = { pet_id: '', medication_name: '', administered_at: moment().format('YYYY-MM-DD'), frequency: '', administering_veterinarian: 'Nathalie Staffe', notes: '' }
+	medicationsForm.value.unshift(newItem)
 };
 
 const deleteMedication = async (index) => {
@@ -114,14 +146,41 @@ const fetchMedications = async () => {
 	if (medicationsForm.value.length === 0) {
 		medicationsForm.value.push({
 			medication_name: '',
-			administered_at: null,
-			dosage: '',
+			administered_at: moment().format('YYYY-MM-DD'),
 			frequency: '',
-			administering_veterinarian: '',
+			administering_veterinarian: 'Nathalie Staffe',
 			notes: '',
 		});
 	}
+	nextTick(() => autoResizeAll())
 };
+
+// Auto-resize helpers for notes textarea
+const notesRefs = ref([])
+const setNotesRef = (el, idx) => {
+	if (el) notesRefs.value[idx] = el
+}
+const autoResize = (el) => {
+	if (!el) return
+	el.style.height = 'auto'
+	el.style.height = `${el.scrollHeight}px`
+}
+const autoResizeAll = () => {
+	notesRefs.value.forEach(el => autoResize(el))
+}
+
+// When medication_name changes, copy frequency from selected recurring treatment periodicity
+watch(
+	() => medicationsForm.value.map(m => m.medication_name),
+	(names) => {
+		names.forEach((name, idx) => {
+			const rt = recurringTreatments.value.find(t => t.name === name)
+			if (rt) {
+				medicationsForm.value[idx].frequency = rt.periodicity
+			}
+		})
+	}
+)
 </script>
 
 <template>
@@ -136,17 +195,21 @@ const fetchMedications = async () => {
 
 		<form @submit.prevent="storeMedication" class="mt-6">
 
-			<div v-for="(medication, index) in medicationsForm" :key="index" class="grid grid-cols-12 gap-5 mb-5 p-5">
-				<div class=" col-span-12 md:col-span-6 lg:col-span-2">
-					<label for="vaccine_name" class="mb-2 block text-sm font-medium text-gray-500">Medication Name</label>
-					<input v-model="medication.medication_name" name="medication_name" id="medication_name"
-						placeholder="Medication Name"
-						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
+			<div v-for="(medication, index) in medicationsForm" :key="index" class="flex flex-col lg:flex-row lg:items-end gap-5 mb-5 p-5">
+				<div class="w-full lg:w-1/4">
+					<label for="medication_name" class="mb-2 block text-sm font-medium text-gray-500">Medication Name</label>
+					<select v-model="medication.medication_name" id="medication_name"
+						class="block w-full lg:w-11/12 rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
 						:class="{ 'border-red-500': errors[`medications[${index}].medication_name`] }">
+						<option value="">Sélectionner</option>
+						<option v-for="rt in recurringTreatments" :key="rt.id" :value="rt.name">
+							{{ rt.name }} ({{ rt.species?.name || 'Toutes espèces' }})
+						</option>
+					</select>
 					<span class="text-red-500 text-xs">{{ errors[`medications[${index}].medication_name`] }}</span>
 				</div>
 
-				<div class="col-span-12 md:col-span-6 lg:col-span-2">
+				<div class="w-full lg:w-[150px]">
 					<label for="administered_at" class="mb-2 block text-sm font-medium text-gray-500">Date</label>
 					<input type="date" v-model="medication.administered_at"
 						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
@@ -154,41 +217,49 @@ const fetchMedications = async () => {
 					<span class="text-red-500 text-xs">{{ errors[`medications[${index}].administered_at`] }}</span>
 				</div>
 
-				<div class="col-span-12 md:col-span-6 lg:col-span-1">
-					<label for="batch_number" class="mb-2 block text-sm font-medium text-gray-500">Dosage</label>
-					<input v-model="medication.dosage" name="dosage" id="dosage" placeholder="Dosage"
-						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
-						:class="{ 'border-red-500': errors[`medications[${index}].dosage`] }">
-					<span class="text-red-500 text-xs">{{ errors[`medications[${index}].dosage`] }}</span>
-				</div>
+                
 
-				<div class="col-span-12 md:col-span-6 lg:col-span-1">
+				<div class="w-full lg:w-[120px]">
 					<label for="frequency" class="mb-2 block text-sm font-medium text-gray-500">Frequency</label>
-					<input v-model="medication.frequency" name="frequency" id="frequency" placeholder="Frequency"
+					<input v-model="medication.frequency" name="frequency" id="frequency" placeholder="Ex: 1m, 3m, 1y"
 						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
 						:class="{ 'border-red-500': errors[`medications[${index}].frequency`] }">
 					<span class="text-red-500 text-xs">{{ errors[`medications[${index}].frequency`] }}</span>
 				</div>
 
-				<div class="col-span-12 md:col-span-6 lg:col-span-2">
+				<div class="w-full lg:w-[180px]">
+					<label class="mb-2 block text-sm font-medium text-gray-500">Rappel</label>
+					<div class="block w-full rounded-md border border-gray-300 bg-gray-50 text-gray-900 text-sm px-3 py-2">
+						{{ computeReminderDate(medication.administered_at, medication.frequency) || '-' }}
+					</div>
+				</div>
+
+				<div class="w-full lg:w-1/5">
 					<label for="administering_veterinarian"
 						class="mb-2 block text-sm font-medium text-gray-500">Administering Veterinarian</label>
-					<input v-model="medication.administering_veterinarian" name="administering_veterinarian" id="frequency"
-						placeholder="Administering Veterinarian"
+					<select v-model="medication.administering_veterinarian" id="administering_veterinarian"
 						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
 						:class="{ 'border-red-500': errors[`medications[${index}].administering_veterinarian`] }">
+						<option value="Nathalie Staffe">Nathalie Staffe</option>
+						<option value="Léna Staffe">Léna Staffe</option>
+					</select>
 					<span class="text-red-500 text-xs">{{ errors[`medications[${index}].administering_veterinarian`] }}</span>
 				</div>
 
-				<div class="col-span-12 md:col-span-6 lg:col-span-3">
+				<div class="w-full lg:flex-1">
 					<label for="notes" class="mb-2 block text-sm font-medium text-gray-500">Notes</label>
-					<textarea v-model="medication.notes" name="notes" id="notes" placeholder="Notes" rows="5"
-						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
-						:class="{ 'border-red-500': errors[`medications[${index}].notes`] }"></textarea>
+					<textarea v-model="medication.notes" :ref="el => setNotesRef(el, index)" @input="autoResize(notesRefs.value[index])" name="notes" id="notes" placeholder="Notes"
+						:class="[
+							'block rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm resize-none overflow-hidden',
+							medication.notes && medication.notes.length > 0 ? 'w-full' : 'w-2/5',
+							errors[`medications[${index}].notes`] ? 'border-red-500' : ''
+						]"
+						:style="medication.notes && medication.notes.length > 0 ? '' : 'height:2.25rem'"
+					></textarea>
 					<span class="text-red-500 text-xs">{{ errors[`medications[${index}].notes`] }}</span>
 				</div>
 
-				<div class="col-span-12 sm:col-span-1 mt-7">
+				<div class="lg:w-auto lg:self-end">
 					<button v-if="medication.id" @click.stop.prevent="deleteMedication(index)"
 						class="bg-red-500 hover:bg-red-700 text-white p-2 rounded-md">
 						<TrashIcon class="h-6 w-6" />

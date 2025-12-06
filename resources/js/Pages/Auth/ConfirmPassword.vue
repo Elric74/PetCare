@@ -7,6 +7,7 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import { useI18n } from 'vue-i18n';
 
 const form = useForm({
     password: '',
@@ -23,10 +24,11 @@ const submit = () => {
         },
     });
 };
+const { t } = useI18n();
 </script>
 
 <template>
-    <Head title="Secure Area" />
+    <Head :title="t('auth.secure_area')" />
 
     <AuthenticationCard>
         <template #logo>
@@ -34,12 +36,12 @@ const submit = () => {
         </template>
 
         <div class="mb-4 text-sm text-gray-600">
-            This is a secure area of the application. Please confirm your password before continuing.
+            {{ t('auth.confirm_prompt') }}
         </div>
 
         <form @submit.prevent="submit">
             <div>
-                <InputLabel for="password" value="Password" />
+                <InputLabel for="password" :value="t('auth.password')" />
                 <TextInput
                     id="password"
                     ref="passwordInput"
@@ -55,7 +57,7 @@ const submit = () => {
 
             <div class="flex justify-end mt-4">
                 <PrimaryButton class="ms-4" :class="{ 'opacity-25': form.processing }" :disabled="form.processing">
-                    Confirm
+                    {{ t('auth.confirm') }}
                 </PrimaryButton>
             </div>
         </form>

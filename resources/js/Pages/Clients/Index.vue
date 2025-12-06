@@ -9,11 +9,14 @@ import { Link } from '@inertiajs/vue3';
 import { initFlowbite } from 'flowbite'
 import moment from 'moment';
 import { useToast } from "vue-toastification"
+import { useI18n } from 'vue-i18n';
 
 onMounted(() => {
     initFlowbite();
     fetchClients();
 })
+
+const { t } = useI18n();
 
 const toast = useToast();
 const meta = ref({})
@@ -34,7 +37,7 @@ const fetchClients = async (page = 1) => {
 const handleSearch = async ({ search, keywords }) => {
     if (!keywords) {
         // Show a toast error
-        toast.warning('Enter a search term')
+        toast.warning(t('items.enter_search_term'))
     } else {
         // If not empty, perform the search
         clients.value = await search('/clients/search');
@@ -67,12 +70,12 @@ const togglePetSelection = (ClientId) => {
 
 const deleteClient = (id) => {
     Swal.fire({
-        title: 'Delete Client?',
-        text: 'Are you sure you want to delete this client?',
+        title: t('clients.delete_client_title'),
+        text: t('clients.delete_client_text'),
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Yes, delete it',
-        cancelButtonText: 'No, keep it'
+        confirmButtonText: t('items.yes_delete'),
+        cancelButtonText: t('items.no_keep')
     }).then((result) => {
         if (result.isConfirmed) {
             axios.delete(`/clients/${id}`)
@@ -90,12 +93,12 @@ const deleteClient = (id) => {
 const handleBulkDelete = () => {
     if (selectedClientIds.value.length > 0) {
         Swal.fire({
-            title: 'Delete Selected Clients?',
-            text: `You have selected ${selectedClientIds.value.length} client(s). Do you want to continue?`,
+            title: t('clients.delete_selected_title'),
+            text: t('clients.delete_selected_text', { count: selectedClientIds.value.length }),
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Yes, delete them',
-            cancelButtonText: 'No, keep them'
+            confirmButtonText: t('items.yes_delete'),
+            cancelButtonText: t('items.no_keep')
         }).then((result) => {
             if (result.isConfirmed) {
                 axios.delete('/clients/bulk-delete/selected', { data: { selectedIds: selectedClientIds.value } })
@@ -119,10 +122,10 @@ const handleBulkDelete = () => {
 </script>
 
 <template>
-    <AppLayout title="Clients">
+    <AppLayout :title="t('clients.title')">
         <template #header>
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                Clients
+                {{ t('clients.title') }}
             </h2>
         </template>
 
@@ -134,7 +137,7 @@ const handleBulkDelete = () => {
                             class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4">
                             <div class="w-full md:w-1/2">
                                 <form class="flex items-center">
-                                    <label for="simple-search" class="sr-only">Search</label>
+                                    <label for="simple-search" class="sr-only">{{ t('common.search') }}</label>
                                     <div class="relative w-full">
                                         <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                                             <svg aria-hidden="true" class="w-5 h-5 text-gray-500 dark:text-gray-400"
@@ -158,7 +161,7 @@ const handleBulkDelete = () => {
 
                                 <Link :href="route('clients.create')"
                                     class="flex items-center justify-center text-white bg-indigo-700 hover:bg-indigo-800 focus:ring-4 focus:ring-indigo-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-indigo-600 dark:hover:bg-indigo-700 focus:outline-none dark:focus:ring-indigo-800">
-                                <PlusSmallIcon class="w-5 h-5 -ml-1 mr-2" /> New Client
+                                <PlusSmallIcon class="w-5 h-5 -ml-1 mr-2" /> {{ t('clients.add_client') }}
                                 </Link>
                             </div>
                         </div>
@@ -186,10 +189,10 @@ const handleBulkDelete = () => {
                                             <label for="checkbox-all" class="sr-only">checkbox</label>
                                         </div>
                                     </th>
-                                    <th scope="col" class="px-4 py-3 w-[20%]">Name</th>
-                                    <th scope="col" class="px-4 py-3 w-[20%]">Email</th>
-                                    <th scope="col" class="px-4 py-3 w-[20%]">Phone Number</th>
-                                    <th scope="col" class="px-4 py-3 w-[40%]">Added</th>
+                                    <th scope="col" class="px-4 py-3 w-[20%]">{{ t('clients.client_name') }}</th>
+                                    <th scope="col" class="px-4 py-3 w-[20%]">{{ t('clients.email') || t('auth.email') }}</th>
+                                    <th scope="col" class="px-4 py-3 w-[20%]">{{ t('clients.phone_number') }}</th>
+                                    <th scope="col" class="px-4 py-3 w-[40%]">{{ t('clients.added') || 'Ajouté' }}</th>
                                     <th scope="col" class="px-4 py-3">
                                         <span class="sr-only">Actions</span>
                                     </th>
@@ -207,10 +210,10 @@ const handleBulkDelete = () => {
                                                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                                                         </svg>
                                                     </div>
-                                                    <h1 class="mt-3 text-lg text-gray-400 dark:text-white">No clients found</h1>
+                                                    <h1 class="mt-3 text-lg text-gray-400 dark:text-white">{{ t('clients.no_clients_found') }}</h1>
                                                     <div class="flex flex-col sm:flex-row items-center mt-4 sm:mx-auto gap-y-3 sm:gap-x-3">
                                                         <button @click="handleClear" class="px-5 py-2 text-sm text-gray-700 transition-colors duration-200 bg-white border rounded-lg sm:w-auto dark:hover:bg-gray-800 dark:bg-gray-900 hover:bg-gray-100 dark:text-gray-200 dark:border-gray-700">
-                                                            Clear Search
+                                                            {{ t('items.clear_search') }}
                                                         </button>
 
                                                         <button class="flex items-center justify-center px-5 py-2 text-sm tracking-wide text-white transition-colors duration-200 bg-indigo-700 rounded-lg shrink-0 sm:w-auto gap-x-2 hover:bg-indigo-800 dark:hover:bg-indigo-800 dark:bg-indigo-700">
@@ -218,7 +221,7 @@ const handleBulkDelete = () => {
                                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                             </svg>
 
-                                                            <span>Add Client</span>
+                                                            <span>{{ t('clients.add_client') }}</span>
                                                         </button>
                                                     </div>
                                                 </div>

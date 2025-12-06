@@ -6,6 +6,7 @@ import VueMultiselect from 'vue-multiselect'
 import 'vue-multiselect/dist/vue-multiselect.css'
 import { useToast } from "vue-toastification"
 import { validateForm, errors, watchFields } from '@/Validation/Pets/Index'
+import { useI18n } from 'vue-i18n';
 
 const isSubmitting = ref(false)
 const selectedUser = ref(null);
@@ -19,11 +20,13 @@ const selectedFile = ref(null);
 
 const toast = useToast();
 
+const { t } = useI18n();
+
 const createForm = useForm({
 	name: '',
 	species_id: '',
 	breed_id: '',
-	age: '',
+	birth_date: '',
 	gender: '',
 	photo: null,
 	client_id: ''
@@ -32,7 +35,7 @@ const resetForm = () => {
 	createForm.name = '';
 	createForm.species_id = '';
 	createForm.breed_id = '';
-	createForm.age = '';
+	createForm.birth_date = '';
 	createForm.gender = '';
 	createForm.photo = null;
 	createForm.client_id = '';
@@ -138,24 +141,32 @@ const createPet = async () => {
 	formData.append('name', createForm.name);
 	formData.append('species_id', createForm.species_id);
 	formData.append('breed_id', createForm.breed_id);
-	formData.append('age', createForm.age);
+	formData.append('birth_date', createForm.birth_date);
 	formData.append('gender', createForm.gender);
 	if (createForm.photo && createForm.photo.file instanceof File) {
 		formData.append('photo', createForm.photo.file);
 	}
 	formData.append('client_id', createForm.client_id);
 
-	const response = await axios.post('/pets/store', formData, {
-		headers: {
-			'Content-Type': 'multipart/form-data',
-		},
-	});
+	try {
+		const response = await axios.post('/pets/store', formData);
 
-	resetForm();
-
-	toast.success(response.data.message);
-
-	isSubmitting.value = false;
+		resetForm();
+		toast.success(response.data.message);
+	} catch (error) {
+		if (error.response && error.response.status === 422) {
+			const respErrors = error.response.data.errors || {};
+			// Map server validation arrays to single messages for the client errors object
+			Object.keys(respErrors).forEach(key => {
+				errors.value[key] = Array.isArray(respErrors[key]) ? respErrors[key][0] : respErrors[key];
+			});
+			toast.error('Please correct the highlighted errors.');
+		} else {
+			toast.error(error.message || 'An unexpected error occurred');
+		}
+	} finally {
+		isSubmitting.value = false;
+	}
 };
 
 const fetchSpecies = async (query) => {
@@ -186,33 +197,33 @@ const fetchBreeds = async (speciesId) => {
 </script>
 
 <template>
-	<AppLayout title="Add Pet">
+	<AppLayout :title="t('pets.add_pet')">
 		<template #header>
-			<h2 class="text-lg font-semibold leading-6 text-gray-900">
-				Add Pet
-			</h2>
-		</template>
+				<h2 class="text-lg font-semibold leading-6 text-gray-900">
+					{{ t('pets.add_pet') }}
+				</h2>
+			</template>
 
 		<div class="max-w-full bg-white p-5 rounded-md">
 			<form @submit.prevent="createPet" enctype="multipart/form-data" class="space-y-5">
 				<div class="grid grid-cols-12 gap-5">
 
 					<div class="col-span-6">
-						<label for="name" class="mb-2 block text-sm font-medium text-gray-700">Name</label>
+						<label for="name" class="mb-2 block text-sm font-medium text-gray-700">{{ t('pets.name') }}</label>
 						<input v-model="createForm.name" type="text" id="name"
 							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
-							:class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500': errors.name }" placeholder="Pet Name" />
+							:class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500': errors.name }" :placeholder="t('pets.name')" />
 						<div v-if="errors.name" class="text-sm text-red-500 mt-1">
 							{{ errors.name }}
 						</div>
 					</div>
 					<div class="col-span-6">
-						<label for="client_id" class="mb-2 block text-sm font-medium text-gray-700">Client</label>
+						<label for="client_id" class="mb-2 block text-sm font-medium text-gray-700">{{ t('pets.client') }}</label>
 						<VueMultiselect v-model="selectedUser" :class="{ 'error': errors.client_id }" :options="matchingUsers"
-							:multiple="false" :clear-on-select="true" placeholder="Type to search" label="name" track-by="id"
+							:multiple="false" :clear-on-select="true" :placeholder="t('common.type_to_search')" label="name" track-by="id"
 							@search-change="fetchUsers" @input="setUserId">
 							<template #noUser>
-								Oops! No users found. Try a different search query.
+								{{ t('common.no_users_found') }}
 							</template>
 						</VueMultiselect>
 						<div v-if="errors.client_id" class="text-sm text-red-500 mt-1">
@@ -221,12 +232,12 @@ const fetchBreeds = async (speciesId) => {
 					</div>
 
 					<div class="col-span-12 sm:col-span-6">
-						<label for="species" class="mb-2 block text-sm font-medium text-gray-700">Species</label>
+						<label for="species" class="mb-2 block text-sm font-medium text-gray-700">{{ t('pets.species') }}</label>
 						<VueMultiselect v-model="selectedSpecies" :class="{ 'error': errors.species_id }" :options="matchingSpecies"
-							:multiple="false" :clear-on-select="true" placeholder="Type to search" label="name" track-by="id"
+							:multiple="false" :clear-on-select="true" :placeholder="t('common.type_to_search')" label="name" track-by="id"
 							@search-change="fetchSpecies" @input="setSpeciesId">
 							<template #noSpecies>
-								Oops! No species found. Try a different search query.
+								{{ t('common.no_species_found') }}
 							</template>
 						</VueMultiselect>
 						<div v-if="errors.species_id" class="text-sm text-red-500 mt-1">
@@ -234,36 +245,37 @@ const fetchBreeds = async (speciesId) => {
 						</div>
 					</div>
 					<div class="col-span-12 sm:col-span-6">
-						<label for="breed" class="mb-2 block text-sm font-medium text-gray-700">Breed</label>
+						<label for="breed" class="mb-2 block text-sm font-medium text-gray-700">{{ t('pets.breed') }}</label>
 						<VueMultiselect v-model="selectedBreed" :options="matchingBreeds" :multiple="false" :clear-on-select="true"
-							placeholder="Type to search" label="name" track-by="id">
+							:placeholder="t('common.type_to_search')" label="name" track-by="id">
 							<template #noResult1>
-								Oops! No breeds found. Try a different search query.
+								{{ t('common.no_breeds_found') }}
 							</template>
 						</VueMultiselect>
 					</div>
 
 					<div class="col-span-8 sm:col-span-10">
-						<label for="gender" class="mb-2 block text-sm font-medium text-gray-700">Gender</label>
+						<label for="gender" class="mb-2 block text-sm font-medium text-gray-700">{{ t('pets.gender') }}</label>
 						<select v-model="createForm.gender" id="gender"
 							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50">
-							<option disabled selected>Select Gender</option>
-							<option value="male">Male</option>
-							<option value="female">Female</option>
-							<option value="none">None</option>
+							<option disabled selected>{{ t('common.select_gender') }}</option>
+							<option value="Femelle">Femelle</option>
+							<option value="Femelle Stérilisée">Femelle Stérilisée</option>
+							<option value="Male">Male</option>
+							<option value="Male castré">Male castré</option>
 						</select>
 					</div>
 					<div class="col-span-4 sm:col-span-2">
-						<label for="age" class="mb-2 block text-sm font-medium text-gray-700">Age</label>
-						<input v-model="createForm.age" type="number" id="age"
+						<label for="birth_date" class="mb-2 block text-sm font-medium text-gray-700">{{ t('pets.birth_date') }}</label>
+						<input v-model="createForm.birth_date" type="date" id="birth_date"
 							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
-							placeholder="1" />
+							:placeholder="t('pets.birth_date')" />
 					</div>
 
 					<div class="col-span-12">
 
 						<div class="mx-auto max-w-full">
-							<label for="photo" class="mb-2 block text-sm font-medium text-gray-700">Pet Photo</label>
+							<label for="photo" class="mb-2 block text-sm font-medium text-gray-700">{{ t('pets.photo') }}</label>
 							<label
 								class="flex w-full cursor-pointer appearance-none items-center justify-center rounded-md border-2 border-dashed border-gray-200 p-6 transition-all hover:border-indigo-700"
 								:class="{ 'border-red-500 focus:border-red-500 focus:ring-red-500': errors.photo }">
@@ -280,12 +292,12 @@ const fetchBreeds = async (speciesId) => {
 										</div>
 									</div>
 									<div class="text-gray-600">
-										<a href="#" class="font-medium text-indigo-500 hover:text-indigo-700">Click to upload</a> or drag and
+										<a href="#" class="font-medium text-indigo-500 hover:text-indigo-700">{{ t('common.click_to_upload') }}</a> or drag and
 										drop
 									</div>
-									<p class="text-sm text-gray-500">PNG or JPG (max. 1mb)</p>
+									<p class="text-sm text-gray-500">PNG, JPG or HEIC (max. 4MB)</p>
 								</div>
-								<input @change="handleFileChange" id="photo" name="photo" type="file" class="sr-only" />
+								<input @change="handleFileChange" id="photo" name="photo" type="file" accept=".png,.jpg,.jpeg,.heic,.heif,image/*" class="sr-only" />
 							</label>
 							<div v-if="errors.photo" class="text-sm text-red-500 mt-1">
 								{{ errors.photo }}
@@ -296,7 +308,7 @@ const fetchBreeds = async (speciesId) => {
 					<div class="col-span-12">
 						<button type="submit" :disabled="isSubmitting"
 							class="w-full rounded-lg border border-indigo-700 bg-indigo-700 px-8 py-4 text-center text-lg font-medium text-white shadow-sm transition-all hover:border-indigo-800 hover:bg-indigo-800 disabled:cursor-not-allowed disabled:border-indigo-300 disabled:bg-indigo-300">
-							Add Pet
+							{{ $t('pets.add') }}
 						</button>
 					</div>
 

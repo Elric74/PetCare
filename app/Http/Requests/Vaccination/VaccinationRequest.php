@@ -23,6 +23,7 @@ class VaccinationRequest extends FormRequest
             'vaccinations.*.administered_at' => ['required', 'date'],
             'vaccinations.*.batch_number' => ['nullable', 'string', 'max:255'],
             'vaccinations.*.administering_veterinarian' => ['nullable', 'string', 'max:255'],
+            'vaccinations.*.reminder_date' => ['nullable', 'date'],
             'vaccinations.*.notes' => ['nullable', 'string'],
         ];
     }

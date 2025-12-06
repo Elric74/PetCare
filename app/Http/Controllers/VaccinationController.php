@@ -37,4 +37,10 @@ class VaccinationController extends Controller
 			'message' => $response['message']
 		], $response['status']);
 	}
+
+	public function fetchVaccinesBySpecies($speciesId)
+	{
+		$vaccines = $this->vaccinationService->fetchVaccinesBySpecies($speciesId);
+		return response()->json($vaccines);
+	}
 }

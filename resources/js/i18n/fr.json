@@ -1,0 +1,124 @@
+{
+  "ui": {
+    "app_name": "Pet Care"
+  },
+  "common": {
+    "search": "Recherche",
+    "toggle_sidebar": "Basculer la barre latérale",
+    "select_gender": "Sélectionner le genre",
+    "click_to_upload": "Cliquer pour télécharger",
+    "type_to_search": "Tapez pour rechercher",
+    "no_users_found": "Aucun utilisateur trouvé",
+    "no_species_found": "Aucune espèce trouvée",
+    "no_breeds_found": "Aucune race trouvée"
+  },
+  "common_messages": {
+    "correct_errors": "Veuillez corriger les erreurs dans le formulaire."
+  },
+  "dashboard": {
+    "title": "Tableau de bord"
+  },
+  "items": {
+    "title": "Inventaire",
+    "new_item": "Nouvel article",
+    "name": "Nom",
+    "description": "Description",
+    "quantity": "Quantité",
+    "unit_price": "Prix unitaire",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "no_items_found": "Aucun article trouvé",
+    "clear_search": "Effacer la recherche",
+    "add_item": "Ajouter un article",
+    "enter_search_term": "Veuillez entrer un terme de recherche",
+    "delete_item_title": "Supprimer l'article ?",
+    "delete_item_text": "Êtes-vous sûr de vouloir supprimer cet article ?",
+    "delete_selected_title": "Supprimer les articles sélectionnés ?",
+    "delete_selected_text": "Vous avez sélectionné {count} article(s). Voulez-vous continuer ?",
+    "yes_delete": "Oui, supprimer",
+    "no_keep": "Non, garder"
+  },
+  "clients": {
+    "title": "Clients",
+    "add_client": "Ajouter un client",
+    "edit_client": "Modifier le client",
+    "client_name": "Nom du client",
+    "email": "E-mail",
+    "phone_number": "Téléphone",
+    "address": "Adresse",
+    "notes": "Notes",
+    "add": "Ajouter",
+    "update": "Mettre à jour"
+    , "no_clients_found": "Aucun client trouvé",
+    "added": "Ajouté"
+    ,
+    "delete_client_title": "Supprimer le client ?",
+    "delete_client_text": "Êtes-vous sûr de vouloir supprimer ce client ?",
+    "delete_selected_title": "Supprimer les clients sélectionnés ?",
+    "delete_selected_text": "Vous avez sélectionné {count} client(s). Voulez-vous continuer ?"
+  },
+  "pets": {
+    "title": "Animaux",
+    "add_pet": "Ajouter un animal",
+    "edit_pet": "Modifier l'animal",
+    "consultation": "Consultation",
+    "name": "Nom",
+    "client": "Propriétaire",
+    "species": "Espèce",
+    "breed": "Race",
+    "gender": "Genre",
+    "birth_date": "Date de naissance",
+    "birth_label": "Naissance",
+    "chip_number": "Numéro de puce",
+    "view_pet": "Voir l'animal",
+    "photo": "Photo",
+    "add": "Ajouter",
+    "edit": "Modifier",
+    "delete": "Supprimer"
+    ,
+    "no_pets_found": "Aucun animal trouvé",
+    "delete_pet_title": "Supprimer l'animal ?",
+    "delete_pet_text": "Êtes-vous sûr de vouloir supprimer cet animal ?",
+    "delete_selected_title": "Supprimer les animaux sélectionnés ?",
+    "delete_selected_text": "Vous avez sélectionné {count} animal(s). Voulez-vous continuer ?"
+  },
+  "pets_tabs": {
+    "vaccinations": "Vaccinations",
+    "medical_history": "Historique médical",
+    "medications": "Traitements Récurrents",
+    "surgical_history": "Historique chirurgical",
+    "gallery": "Galerie"
+  },
+  "appointments": {
+    "title": "Rendez-vous"
+  },
+  "parameters": {
+    "title": "Paramètres"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "register": "S'inscrire",
+    "name": "Nom",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "confirm_password": "Confirmer le mot de passe",
+    "remember_me": "Se souvenir de moi",
+    "forgot_password": "Mot de passe oublié ?",
+    "send_reset_link": "Envoyer le lien de réinitialisation",
+    "reset_password": "Réinitialiser le mot de passe",
+    "forgot_password_instructions": "Mot de passe oublié ? Pas de problème. Indiquez-nous votre adresse e-mail et nous vous enverrons un lien de réinitialisation qui vous permettra d'en choisir un nouveau.",
+    "already_registered": "Déjà enregistré ?",
+    "and": "et",
+    "terms_agree": "J'accepte les",
+    "resend_verification": "Renvoyer l'e-mail de vérification",
+    "edit_profile": "Modifier le profil",
+    "logout": "Se déconnecter",
+    "secure_area": "Zone sécurisée",
+    "verify_email_title": "Vérification de l'adresse e-mail",
+    "verify_email_text": "Avant de continuer, veuillez vérifier votre adresse e-mail en cliquant sur le lien que nous venons de vous envoyer. Si vous n'avez pas reçu l'e-mail, nous vous en enverrons un autre.",
+    "verification_sent": "Un nouveau lien de vérification a été envoyé à votre adresse e-mail.",
+    "confirm_prompt": "Ceci est une zone sécurisée de l'application. Veuillez confirmer votre mot de passe avant de continuer.",
+    "confirm": "Confirmer"
+  }
+}
+

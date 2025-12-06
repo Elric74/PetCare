@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Webcam + WebHID Debug</title>
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; padding: 20px; color:#111 }
+    .container { max-width:900px; margin:0 auto }
+    h1 { font-size:18px; margin-bottom:8px }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px }
+    button { padding:8px 12px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer }
+    button.primary { background:#2563eb; color:#fff; border-color:#1d4ed8 }
+    button.danger { background:#ef4444; color:#fff; border-color:#dc2626 }
+    .videoWrap { width:360px; border-radius:8px; overflow:hidden; background:#000; margin-bottom:8px }
+    video { display:block; width:360px; height:270px; object-fit:cover }
+    .log { height:300px; overflow:auto; border:1px solid #e5e7eb; padding:10px; background:#fafafa; border-radius:6px; font-family:monospace; font-size:12px }
+    .devices { margin-top:10px }
+    .device { padding:8px; border:1px dashed #cbd5e1; border-radius:6px; margin-bottom:8px }
+    .note { color:#374151; font-size:13px; margin-top:8px }
+    .row { display:flex; gap:12px; align-items:center }
+    .small { font-size:12px; color:#6b7280 }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Debug Webcam + WebHID</h1>
+    <p class="small">But: afficher le flux webcam et détecter si la webcam expose des boutons via WebHID / événements d'entrée. Utilise un navigateur moderne (Chrome ou Edge). Doit être servi depuis <code>localhost</code> ou HTTPS.</p>
+
+    <div class="controls">
+      <button id="startCam" class="primary">Start Webcam</button>
+      <button id="stopCam">Stop Webcam</button>
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;background:#fff">
+        <input id="autoCapture" type="checkbox" />
+        <span style="font-size:13px">Auto-capture on HID press</span>
+      </label>
+      <button id="requestHid">Request HID Device</button>
+      <button id="enumerateHid">Enumerate HID Devices</button>
+      <button id="clearLog">Clear Log</button>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="videoWrap">
+          <video id="video" autoplay playsinline muted></video>
+        </div>
+        <div id="captures" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"></div>
+        <div class="small">Tips: démarre la webcam puis appuie sur les boutons physiques de ta webcam. Observe le panneau log ci-dessous.</div>
+      </div>
+      <div style="flex:1;margin-left:12px">
+        <div class="devices">
+          <strong>HID Devices:</strong>
+          <div id="devicesList"></div>
+        </div>
+      </div>
+    </div>
+
+    <h2 style="margin-top:14px;">Logs</h2>
+    <div id="log" class="log"></div>
+
+    <div class="note">
+      <p>Notes:</p>
+      <ul>
+        <li>WebHID fonctionne seulement sur des contextes sécurisés (HTTPS) ou <code>localhost</code>. Ouvre par exemple: <code>http://localhost/PetCare/public/webcam-hid-debug.html</code></li>
+        <li>Si la caméra n'expose pas de périphérique HID, le bouton physique peut ne rien émettre vers le navigateur.</li>
+        <li>Teste aussi les événements clavier (espace, touches multimédia) — ils sont affichés dans les logs.</li>
+      </ul>
+    </div>
+  </div>
+
+<script>
+// Elements
+const startCamBtn = document.getElementById('startCam')
+const stopCamBtn = document.getElementById('stopCam')
+const requestHidBtn = document.getElementById('requestHid')
+const enumerateHidBtn = document.getElementById('enumerateHid')
+const clearLogBtn = document.getElementById('clearLog')
+const videoEl = document.getElementById('video')
+const logEl = document.getElementById('log')
+const devicesList = document.getElementById('devicesList')
+
+let stream = null
+let openedDevices = []
+const AUTO_VENDOR = 1008
+const AUTO_PRODUCT = 59399
+const AUTO_REPORT_ID = 0
+
+function log(...args) {
+  const now = new Date().toISOString().slice(11,23)
+  const line = document.createElement('div')
+  line.textContent = `[${now}] ` + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')
+  logEl.appendChild(line)
+  logEl.scrollTop = logEl.scrollHeight
+  console.log(...args)
+}
+
+startCamBtn.addEventListener('click', async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+    videoEl.srcObject = stream
+    log('Webcam started')
+  } catch (err) {
+    log('Error starting webcam:', err.message || err)
+  }
+})
+
+stopCamBtn.addEventListener('click', () => {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop())
+    videoEl.srcObject = null
+    stream = null
+    log('Webcam stopped')
+  }
+})
+
+clearLogBtn.addEventListener('click', () => { logEl.innerHTML = '' })
+
+// WebHID helpers
+async function enumerateDevicesHandler() {
+  if (!('hid' in navigator)) {
+    log('WebHID API not supported in this browser')
+    return
+  }
+  try {
+    const devices = await navigator.hid.getDevices()
+    renderDevices(devices)
+    log('Enumerated devices', devices.map(d => ({productName:d.productName, vendorId:d.vendorId, productId:d.productId})))
+  } catch (err) {
+    log('Error enumerating HID devices', err)
+  }
+}
+
+async function requestDeviceHandler() {
+  if (!('hid' in navigator)) {
+    log('WebHID API not supported in this browser')
+    return
+  }
+  try {
+    // Empty filters to show all devices; user must pick the correct one
+    const devices = await navigator.hid.requestDevice({ filters: [] })
+    renderDevices(devices)
+    log('User selected devices', devices.map(d => ({productName:d.productName, vendorId:d.vendorId, productId:d.productId})))
+    // Open and listen
+    for (const d of devices) {
+      await openAndListen(d)
+    }
+  } catch (err) {
+    log('HID requestDevice error', err)
+  }
+}
+
+function renderDevices(devs) {
+  devicesList.innerHTML = ''
+  if (!devs || devs.length === 0) {
+    devicesList.innerHTML = '<div class="small">No HID devices</div>'
+    return
+  }
+  devs.forEach(d => {
+    const div = document.createElement('div')
+    div.className = 'device'
+    div.innerHTML = `<strong>${d.productName || 'Unnamed device'}</strong><br/>Vendor: ${d.vendorId} Product: ${d.productId} <br/>Usage: ${d.collections && d.collections.length ? JSON.stringify(d.collections) : 'n/a'}`
+    devicesList.appendChild(div)
+  })
+}
+
+async function openAndListen(device) {
+  try {
+    if (!device.opened) await device.open()
+    const info = { productName: device.productName, vendorId: device.vendorId, productId: device.productId }
+    log('Opened HID device', info)
+    const onInput = (event) => {
+      // event.data is a DataView
+      const data = new Uint8Array(event.data.buffer)
+      log('HID inputreport', { device: info, reportId: event.reportId, data: Array.from(data) })
+
+      // Auto-capture condition: matches known HP Webcam HID report (press = [1])
+      try {
+        const autoEnabled = document.getElementById('autoCapture').checked
+        if (autoEnabled && device.vendorId === AUTO_VENDOR && device.productId === AUTO_PRODUCT && event.reportId === AUTO_REPORT_ID) {
+          if (data && data.length > 0 && data[0] === 1) {
+            log('Auto-capture triggered for device', info)
+            captureAndDownloadFrame()
+          }
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    device.addEventListener('inputreport', onInput)
+    openedDevices.push({ device, onInput })
+  } catch (err) {
+    log('Error opening device', err)
+  }
+}
+
+async function closeAllDevices() {
+  for (const obj of openedDevices) {
+    try {
+      obj.device.removeEventListener('inputreport', obj.onInput)
+      if (obj.device.opened) await obj.device.close()
+      log('Closed', { vendorId: obj.device.vendorId, productId: obj.device.productId })
+    } catch (err) {
+      log('Error closing device', err)
+    }
+  }
+  openedDevices = []
+}
+
+// Global keyboard listener: useful if webcam button triggers a keyboard event
+function handleKey(event) {
+  log('Key event', { type: event.type, code: event.code, key: event.key, keyCode: event.keyCode })
+  // If you want, capture space to take photo from debug page
+  if (event.type === 'keydown' && event.code === 'Space') {
+    // flash the video frame capture to a temporary canvas and log size
+    captureFrameInfo()
+  }
+}
+
+function captureFrameInfo() {
+  if (!videoEl || !videoEl.videoWidth) {
+    log('No video frame available')
+    return
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = videoEl.videoWidth
+  canvas.height = videoEl.videoHeight
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(videoEl, 0, 0)
+  canvas.toBlob(b => {
+    log('Captured frame blob', { size: b.size, type: b.type })
+  }, 'image/png')
+}
+
+function captureAndDownloadFrame() {
+  if (!videoEl || !videoEl.videoWidth) {
+    log('No video frame available for capture')
+    return
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = videoEl.videoWidth
+  canvas.height = videoEl.videoHeight
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(videoEl, 0, 0)
+  canvas.toBlob(b => {
+    if (!b) return
+    const url = URL.createObjectURL(b)
+    const a = document.createElement('a')
+    const name = `webcam-capture-${Date.now()}.png`
+    a.href = url
+    a.download = name
+    // add a thumbnail to page
+    const img = document.createElement('img')
+    img.src = url
+    img.style.width = '120px'
+    img.style.height = '90px'
+    img.style.objectFit = 'cover'
+    img.style.border = '1px solid #e5e7eb'
+    img.style.borderRadius = '6px'
+    const caps = document.getElementById('captures')
+    if (caps) caps.prepend(img)
+
+    // automatically download
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    // revoke after some time
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+    log('Captured & downloaded frame', { name, size: b.size })
+  }, 'image/png')
+}
+
+// Wire buttons
+startCamBtn.addEventListener('click', () => startCamBtn.click()) // no-op placeholder
+stopCamBtn.addEventListener('click', () => {})
+requestHidBtn.addEventListener('click', requestDeviceHandler)
+enumerateHidBtn.addEventListener('click', enumerateDevicesHandler)
+
+// Fix: attach real handlers (redeclare to avoid lint)
+startCamBtn.removeEventListener
+startCamBtn.addEventListener('click', async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true })
+    videoEl.srcObject = stream
+    log('Webcam started')
+  } catch (err) {
+    log('Webcam start error', err)
+  }
+})
+stopCamBtn.addEventListener('click', () => {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop())
+    videoEl.srcObject = null
+    stream = null
+    log('Webcam stopped')
+  }
+})
+
+// Clear handler override
+clearLogBtn.addEventListener('click', () => { logEl.innerHTML = '' })
+
+window.addEventListener('keydown', handleKey)
+window.addEventListener('keyup', handleKey)
+
+// Close devices when leaving
+window.addEventListener('beforeunload', async () => {
+  await closeAllDevices()
+})
+
+// On load, show whether WebHID is supported
+if (!('hid' in navigator)) {
+  log('WebHID API: NOT available in this browser')
+} else {
+  log('WebHID API: available')
+  // list already granted devices (if any)
+  navigator.hid.getDevices().then(devs => {
+    if (devs.length) renderDevices(devs)
+  })
+}
+</script>
+</body>
+</html>

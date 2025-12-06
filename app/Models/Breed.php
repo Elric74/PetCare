@@ -14,7 +14,8 @@ class Breed extends Model
 
 	protected $fillable = [
 		'name',
-		'species_id'
+		'species_id',
+		'photo_path'
 	];
 
 	public function species(): BelongsTo

@@ -16,6 +16,7 @@ class Vaccination extends Model
 		'administered_at',
 		'batch_number',
 		'administering_veterinarian',
+		'reminder_date',
 		'notes',
 	];
 

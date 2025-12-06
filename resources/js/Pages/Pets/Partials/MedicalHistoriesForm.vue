@@ -1,5 +1,5 @@
 <script setup>
-import { ref, defineProps, onMounted } from 'vue'
+import { ref, defineProps, onMounted, computed } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 import { useToast } from "vue-toastification"
 import { PlusIcon, TrashIcon } from "@heroicons/vue/24/outline/index.js";
@@ -19,34 +19,43 @@ const props = defineProps({
 	}
 })
 
+const historiesForm = ref([
+	{ condition: '', diagnosis_date: '', treatment: '', weight_g: '', notes: '' }
+]);
+
+// Compute reversed array for display (most recent first)
+const reversedHistories = computed(() => {
+	return [...historiesForm.value].reverse();
+});
+
 onMounted(async () => {
 	await fetchHistories()
 	watchFields(historiesForm.value);
 })
 
-const historiesForm = ref([
-	{ condition: '', diagnosis_date: '', treatment: '', notes: '' }
-]);
-
 const addHistory = () => {
-	historiesForm.value.push({ pet_id: '', condition: '', diagnosis_date: '', treatment: '', notes: '' });
+	const today = moment().format('YYYY-MM-DD');
+	historiesForm.value.push({ pet_id: '', condition: '', diagnosis_date: today, treatment: '', weight_g: '', notes: '' });
 };
 
-const deleteHistory = async (index) => {
+const deleteHistory = async (displayIndex) => {
+	// Convert display index (reversed) back to actual index
+	const actualIndex = historiesForm.value.length - 1 - displayIndex;
+	
 	if (historiesForm.value.length === 1) {
-		const historyId = historiesForm.value[index].id;
+		const historyId = historiesForm.value[actualIndex].id;
 
 		// Clear the form
-		historiesForm.value[index] = { condition: '', diagnosis_date: '', treatment: '', notes: '' };
+		historiesForm.value[actualIndex] = { condition: '', diagnosis_date: '', treatment: '', weight_g: '', notes: '' };
 
 		// Send the id to the backend
 		await axios.delete(`/pets/${pet.id}/histories/${historyId}`);
 
 		toast.success('Medical History successfully deleted!');
 	} else {
-		const history = historiesForm.value[index];
+		const history = historiesForm.value[actualIndex];
 		await axios.delete(`/pets/${pet.id}/histories/${history.id}`);
-		historiesForm.value.splice(index, 1);
+		historiesForm.value.splice(actualIndex, 1);
 		toast.success('Medical History successfully deleted!');
 	}
 };
@@ -123,41 +132,46 @@ const fetchHistories = async () => {
 
 		<form @submit.prevent="storeHistory" class="mt-6">
 
-			<div v-for="(history, index) in historiesForm" :key="index" class="grid grid-cols-12 gap-5 mb-5 p-5">
+			<div v-for="(history, displayIndex) in reversedHistories" :key="displayIndex" class="grid grid-cols-12 gap-5 mb-5 p-5">
 				<div class=" col-span-12 md:col-span-6 lg:col-span-2">
-					<label for="vaccine_name" class="mb-2 block text-sm font-medium text-gray-500">Condition</label>
-					<input v-model="history.condition" name="condition" id="condition" placeholder="Condition"
+					<label for="condition" class="mb-2 block text-sm font-medium text-gray-500">Condition</label>
+					<select v-model="history.condition" name="condition" id="condition"
 						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
-						:class="{ 'border-red-500': errors[`histories[${index}].condition`] }">
-					<span class="text-red-500 text-xs">{{ errors[`histories[${index}].condition`] }}</span>
+						:class="{ 'border-red-500': errors[`histories[${historiesForm.length - 1 - displayIndex}].condition`] }">
+						<option value="">-- Select --</option>
+						<option value="Visite">Visite</option>
+						<option value="Opération">Opération</option>
+						<option value="Urgence">Urgence</option>
+					</select>
+					<span class="text-red-500 text-xs">{{ errors[`histories[${historiesForm.length - 1 - displayIndex}].condition`] }}</span>
 				</div>
 
 				<div class="col-span-12 md:col-span-6 lg:col-span-2">
 					<label for="diagnosis_date" class="mb-2 block text-sm font-medium text-gray-500">Diagnosis Date</label>
 					<input type="date" v-model="history.diagnosis_date"
 						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
-						:class="{ 'border-red-500': errors[`histories[${index}].diagnosis_date`] }">
-					<span class="text-red-500 text-xs">{{ errors[`histories[${index}].diagnosis_date`] }}</span>
+						:class="{ 'border-red-500': errors[`histories[${historiesForm.length - 1 - displayIndex}].diagnosis_date`] }">
+					<span class="text-red-500 text-xs">{{ errors[`histories[${historiesForm.length - 1 - displayIndex}].diagnosis_date`] }}</span>
 				</div>
 
-				<div class="col-span-12 md:col-span-6 lg:col-span-2">
-					<label for="treatment" class="mb-2 block text-sm font-medium text-gray-500">Treatment</label>
-					<input v-model="history.treatment" name="treatment" id="treatment" placeholder="Treatment"
+				<div class="col-span-12 md:col-span-6 lg:col-span-1">
+					<label for="weight_g" class="mb-2 block text-sm font-medium text-gray-500">Poids (g)</label>
+					<input v-model="history.weight_g" name="weight_g" id="weight_g" placeholder="0" type="number" min="0"
 						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
-						:class="{ 'border-red-500': errors[`histories[${index}].treatment`] }">
-					<span class="text-red-500 text-xs">{{ errors[`histories[${index}].treatment`] }}</span>
+						:class="{ 'border-red-500': errors[`histories[${historiesForm.length - 1 - displayIndex}].weight_g`] }">
+					<span class="text-red-500 text-xs">{{ errors[`histories[${historiesForm.length - 1 - displayIndex}].weight_g`] }}</span>
 				</div>
 
-				<div class="col-span-12 md:col-span-6 lg:col-span-5">
+				<div class="col-span-12 md:col-span-6 lg:col-span-6">
 					<label for="notes" class="mb-2 block text-sm font-medium text-gray-500">Notes</label>
 					<textarea v-model="history.notes" name="notes" id="notes" placeholder="Notes" rows="5"
 						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
-						:class="{ 'border-red-500': errors[`histories[${index}].notes`] }"></textarea>
-					<span class="text-red-500 text-xs">{{ errors[`histories[${index}].notes`] }}</span>
+						:class="{ 'border-red-500': errors[`histories[${historiesForm.length - 1 - displayIndex}].notes`] }"></textarea>
+					<span class="text-red-500 text-xs">{{ errors[`histories[${historiesForm.length - 1 - displayIndex}].notes`] }}</span>
 				</div>
 
 				<div class="col-span-12 sm:col-span-1 mt-7">
-					<button v-if="history.id" @click.stop.prevent="deleteHistory(index)"
+					<button v-if="history.id" @click.stop.prevent="deleteHistory(displayIndex)"
 						class="bg-red-500 hover:bg-red-700 text-white p-2 rounded-md">
 						<TrashIcon class="h-6 w-6" />
 					</button>

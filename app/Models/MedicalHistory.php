@@ -17,6 +17,7 @@ class MedicalHistory extends Model
 		'condition',
 		'diagnosis_date',
 		'treatment',
+		'weight_g',
 		'notes',
 	];
 

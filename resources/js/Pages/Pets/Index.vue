@@ -9,11 +9,14 @@ import { Link } from '@inertiajs/vue3';
 import { initFlowbite } from 'flowbite'
 import moment from 'moment';
 import { useToast } from "vue-toastification"
+import { useI18n } from 'vue-i18n';
 
 onMounted(() => {
     initFlowbite();
     fetchPets();
 })
+
+const { t } = useI18n();
 
 const toast = useToast();
 const meta = ref({})
@@ -34,7 +37,7 @@ const fetchPets = async (page = 1) => {
 const handleSearch = async ({ search, keywords }) => {
     if (!keywords) {
         // Show a toast error
-        toast.warning('Enter a search term')
+        toast.warning(t('items.enter_search_term'))
     } else {
         // If not empty, perform the search
         pets.value = await search('/pets/search');
@@ -67,12 +70,12 @@ const togglePetSelection = (PetId) => {
 
 const deletePet = (id) => {
     Swal.fire({
-        title: 'Delete Pet?',
-        text: 'Are you sure you want to delete this pet?',
+        title: t('pets.delete_pet_title'),
+        text: t('pets.delete_pet_text'),
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Yes, delete it',
-        cancelButtonText: 'No, keep it'
+        confirmButtonText: t('items.yes_delete'),
+        cancelButtonText: t('items.no_keep')
     }).then((result) => {
         if (result.isConfirmed) {
             axios.delete(`/pets/${id}`)
@@ -90,12 +93,12 @@ const deletePet = (id) => {
 const handleBulkDelete = () => {
     if (selectedPetIds.value.length > 0) {
         Swal.fire({
-            title: 'Delete Selected Pets?',
-            text: `You have selected ${selectedPetIds.value.length} pet(s). Do you want to continue?`,
+            title: t('pets.delete_selected_title'),
+            text: t('pets.delete_selected_text', { count: selectedPetIds.value.length }),
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Yes, delete them',
-            cancelButtonText: 'No, keep them'
+            confirmButtonText: t('items.yes_delete'),
+            cancelButtonText: t('items.no_keep')
         }).then((result) => {
             if (result.isConfirmed) {
                 axios.delete('/pets/bulk-delete/selected', { data: { selectedIds: selectedPetIds.value } })
@@ -116,13 +119,27 @@ const handleBulkDelete = () => {
         });
     }
 };
+
+const sendSms = async (petId) => {
+    try {
+        const resp = await axios.post(`/pets/${petId}/send-sms`);
+        toast.success(resp.data.message || 'SMS envoyé');
+    } catch (error) {
+        if (error.response && error.response.data && error.response.data.message) {
+            toast.error(error.response.data.message);
+        } else {
+            toast.error('Erreur lors de l\'envoi du SMS');
+        }
+        console.error(error);
+    }
+}
 </script>
 
 <template>
-    <AppLayout title="Pets">
+    <AppLayout :title="t('pets.title')">
         <template #header>
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                Pets
+                {{ t('pets.title') }}
             </h2>
         </template>
 
@@ -134,7 +151,7 @@ const handleBulkDelete = () => {
                             class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4">
                             <div class="w-full md:w-1/2">
                                 <form class="flex items-center">
-                                    <label for="simple-search" class="sr-only">Search</label>
+                                    <label for="simple-search" class="sr-only">{{ t('common.search') }}</label>
                                     <div class="relative w-full">
                                         <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                                             <svg aria-hidden="true" class="w-5 h-5 text-gray-500 dark:text-gray-400"
@@ -158,7 +175,7 @@ const handleBulkDelete = () => {
 
                                 <Link :href="route('pets.create')"
                                     class="flex items-center justify-center text-white bg-indigo-700 hover:bg-indigo-800 focus:ring-4 focus:ring-indigo-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-indigo-600 dark:hover:bg-indigo-700 focus:outline-none dark:focus:ring-indigo-800">
-                                <PlusSmallIcon class="w-5 h-5 -ml-1 mr-2" /> New Pet
+                                <PlusSmallIcon class="w-5 h-5 -ml-1 mr-2" /> {{ t('pets.add_pet') }}
                                 </Link>
                             </div>
                         </div>
@@ -186,10 +203,10 @@ const handleBulkDelete = () => {
                                             <label for="checkbox-all" class="sr-only">checkbox</label>
                                         </div>
                                     </th>
-                                    <th scope="col" class="px-4 py-3 w-[20%]">Name</th>
-                                    <th scope="col" class="px-4 py-3 w-[20%]">Species</th>
-                                    <th scope="col" class="px-4 py-3 w-[20%]">Breed</th>
-                                    <th scope="col" class="px-4 py-3 w-[40%]">Added</th>
+                                    <th scope="col" class="px-4 py-3 w-[20%]">{{ t('pets.name') }}</th>
+                                    <th scope="col" class="px-4 py-3 w-[20%]">{{ t('pets.species') || 'Espèce' }}</th>
+                                    <th scope="col" class="px-4 py-3 w-[20%]">{{ t('pets.breed') || 'Race' }}</th>
+                                    <th scope="col" class="px-4 py-3 w-[40%]">{{ t('clients.added') || 'Ajouté' }}</th>
                                     <th scope="col" class="px-4 py-3">
                                         <span class="sr-only">Actions</span>
                                     </th>
@@ -207,10 +224,10 @@ const handleBulkDelete = () => {
                                                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                                                         </svg>
                                                     </div>
-                                                    <h1 class="mt-3 text-lg text-gray-400 dark:text-white">No Pets found</h1>
+                                                    <h1 class="mt-3 text-lg text-gray-400 dark:text-white">{{ t('pets.no_pets_found') }}</h1>
                                                     <div class="flex flex-col sm:flex-row items-center mt-4 sm:mx-auto gap-y-3 sm:gap-x-3">
                                                         <button @click="handleClear" class="px-5 py-2 text-sm text-gray-700 transition-colors duration-200 bg-white border rounded-lg sm:w-auto dark:hover:bg-gray-800 dark:bg-gray-900 hover:bg-gray-100 dark:text-gray-200 dark:border-gray-700">
-                                                            Clear Search
+                                                            {{ t('items.clear_search') }}
                                                         </button>
 
                                                         <button class="flex items-center justify-center px-5 py-2 text-sm tracking-wide text-white transition-colors duration-200 bg-indigo-700 rounded-lg shrink-0 sm:w-auto gap-x-2 hover:bg-indigo-800 dark:hover:bg-indigo-800 dark:bg-indigo-700">
@@ -218,7 +235,7 @@ const handleBulkDelete = () => {
                                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                             </svg>
 
-                                                            <span>Add Pet</span>
+                                                            <span>{{ t('pets.add_pet') }}</span>
                                                         </button>
                                                     </div>
                                                 </div>
@@ -236,19 +253,34 @@ const handleBulkDelete = () => {
                                         </div>
                                     </th>
                                     <td class="px-4 py-1 lg:py-3 font-medium text-gray-900 whitespace-nowrap dark:text-white">
-                                        {{ pet.name }}
+                                        <span class="align-middle">{{ pet.name }}</span>
+                                        <span v-if="pet.breed_id === 1111 || pet.breed_id === 1112" class="ml-1 text-sm" title="Nouveau">🆕</span>
+                                        <span v-if="pet.decedee" title="Décédé" class="ml-2 inline-block align-middle">
+                                            <!-- Small Christian cross icon (neutral color) -->
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="w-4 h-4 text-gray-500" aria-hidden="true">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v20M5 11h14" />
+                                            </svg>
+                                        </span>
                                     </td>
                                     <td class="px-4 py-1 lg:py-">{{ pet.species && pet.species.name ? pet.species.name : '-' }}</td>
                                     <td class="px-4 py-1 lg:py-3">{{ pet.breed && pet.breed.name ? pet.breed.name : '-' }}</td>
                                     <td class="px-4 py-1 lg:py-3">{{ moment(pet.created_at).format('MMMM Do, YYYY') }}</td>
                                     <td class="px-4 py-4 lg:py-3 flex items-center justify-start lg:justify-end">
                                         <Link :href="route('pets.show', { slug: pet.slug })"
-                                            class="inline-flex items-center p-0.5 text-sm font-medium text-center text-gray-500 hover:text-gray-800 rounded-lg focus:outline-none dark:text-gray-400 dark:hover:text-gray-100">
+                                            class="inline-flex items-center p-0.5 text-sm font-medium text-center text-gray-500 hover:text-gray-800 rounded-lg focus:outline-none dark:text-gray-400 dark:hover:text-gray-100"
+                                            title="Voir">
                                         <EyeIcon class="w-5 h-5 mr-1" />
                                         <span class="sr-only">View</span>
                                         </Link>
+                                    <Link :href="route('pets.consultation', { slug: pet.slug })"
+                                        class="inline-flex items-center p-0.5 text-sm font-medium text-center text-gray-500 hover:text-gray-800 rounded-lg focus:outline-none dark:text-gray-400 dark:hover:text-gray-100"
+                                        title="Consultation">
+                                        <span class="text-xl">🩺</span>
+                                        <span class="sr-only">Consultation</span>
+                                    </Link>
                                         <Link :href="route('pets.edit', { slug: pet.slug })"
-                                            class="inline-flex items-center p-0.5 text-sm font-medium text-center text-gray-500 hover:text-gray-800 rounded-lg focus:outline-none dark:text-gray-400 dark:hover:text-gray-100">
+                                            class="inline-flex items-center p-0.5 text-sm font-medium text-center text-gray-500 hover:text-gray-800 rounded-lg focus:outline-none dark:text-gray-400 dark:hover:text-gray-100"
+                                            title="Éditer">
                                         <PencilSquareIcon class="w-5 h-5 text-indigo-500 hover:text-indigo-800 mr-1" />
                                         <span class="sr-only">Edit</span>
                                         </Link>

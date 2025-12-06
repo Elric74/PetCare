@@ -4,6 +4,7 @@ namespace App\Http\Requests\Pet;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class PetUpdateRequest extends FormRequest
 {
@@ -26,10 +27,23 @@ class PetUpdateRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'species_id' => ['required', 'integer'],
             'breed_id' => ['sometimes', 'integer'],
-            'age' => ['sometimes', 'integer'],
-            'gender' => ['sometimes', 'string', 'max:255'],
+            //'age' removed in favor of birth_date
+            'birth_date' => ['sometimes', 'date', 'before_or_equal:today'],
+            'gender' => ['sometimes', 'string', 'max:255', \Illuminate\Validation\Rule::in(['Femelle','Male','À déterminer'])],
+            'is_sterilized' => ['sometimes', 'boolean'],
+            'sterilized_at' => ['sometimes', 'date', 'before_or_equal:today'],
+            'chip_number' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('pets', 'chip_number')->ignore($this->route('id')),
+            ],
             'client_id' => ['required', 'integer'],
-            'photo' => ['nullable', 'image', 'mimes:jpeg,png,jpg', 'max:1024'],
+            // allow HEIC/HEIF and increase max to 4MB
+            // Use 'file' instead of 'image' because PHP's image detection may not recognise HEIC/HEIF
+            'photo' => ['nullable', 'file', 'mimes:jpeg,png,jpg,heic,heif', 'max:4096'],
+            'decedee' => ['sometimes', 'boolean'],
+            'date_deces' => ['sometimes', 'date', 'before_or_equal:today'],
         ];
     }
 }

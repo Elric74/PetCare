@@ -1,6 +1,6 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { defineProps } from 'vue'
+import { useI18n } from 'vue-i18n';
 import { EnvelopeIcon, MapPinIcon, PhoneIcon, UserIcon } from '@heroicons/vue/24/outline'
 import { Link } from '@inertiajs/vue3';
 
@@ -10,13 +10,14 @@ const props = defineProps({
     required: true
   }
 })
+const { t } = useI18n();
 </script>
 
 <template>
-  <AppLayout title="Show Client">
+  <AppLayout :title="t('clients.client_name') + ': ' + client.name">
     <template #header>
       <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-        Show Client: {{ client.name }}
+        {{ t('clients.client_name') }}: {{ client.name }}
       </h2>
     </template>
 
@@ -52,7 +53,7 @@ const props = defineProps({
           </div>
           <hr />
           <div class="px-6 py-4">
-            <span class="text-sm font-semibold text-gray-400">Notes</span>
+            <span class="text-sm font-semibold text-gray-400">{{ t('clients.notes') }}</span>
             <p class="text-sm">{{ client.notes }}</p>
           </div>
         </div>

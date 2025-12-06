@@ -4,8 +4,9 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import Banner from '@/Components/Banner.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
-import { UsersIcon, Squares2X2Icon, BoltIcon, CalendarDaysIcon, BeakerIcon } from '@heroicons/vue/24/outline'
+import { UsersIcon, Squares2X2Icon, BoltIcon, CalendarDaysIcon, BeakerIcon, Cog6ToothIcon, PhotoIcon } from '@heroicons/vue/24/outline'
 import { initFlowbite } from 'flowbite'
+import { useI18n } from 'vue-i18n';
 
 onMounted(() => {
 	initFlowbite();
@@ -14,6 +15,8 @@ onMounted(() => {
 defineProps({
 	title: String,
 });
+
+const { t } = useI18n();
 
 const logout = () => {
 	router.post(route('logout'));
@@ -47,12 +50,12 @@ const logout = () => {
 									d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
 									clip-rule="evenodd"></path>
 							</svg>
-							<span class="sr-only">Toggle sidebar</span>
+							<span class="sr-only">{{ t('common.toggle_sidebar') }}</span>
 						</button>
 						<a href="/dashboard" class="flex items-center justify-between mr-4">
 							<img src="/img/logo.png" class="mr-3" alt="Flowbite Logo" />
 							<span
-								class="self-center text-2xl text-indigo-900 font-semibold whitespace-nowrap dark:text-white">Pet Care</span>
+								class="self-center text-2xl text-indigo-900 font-semibold whitespace-nowrap dark:text-white">{{ t('ui.app_name') }}</span>
 						</a>
 					</div>
 					<div class="flex items-center lg:order-2">
@@ -72,14 +75,14 @@ const logout = () => {
 							</div>
 							<ul class="py-1 text-gray-700 dark:text-gray-300" aria-labelledby="dropdown">
 								<li>
-										<Link :href="route('profile.show')" class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">Profile</Link>
+										<Link :href="route('profile.show')" class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">{{ t('auth.edit_profile') }}</Link>
 								</li>
 							</ul>
 							<ul class="py-1 text-gray-700 dark:text-gray-300" aria-labelledby="dropdown">
 								<li>
 									<form @submit.prevent="logout">
 										<DropdownLink as="button">
-											Log Out
+											{{ t('auth.logout') }}
 										</DropdownLink>
 									</form>
 								</li>
@@ -96,7 +99,7 @@ const logout = () => {
 				aria-label="Sidenav" id="drawer-navigation">
 				<div class="overflow-y-auto py-5 px-3 h-full bg-gray-900 dark:bg-gray-800">
 					<form action="#" method="GET" class="md:hidden mb-2">
-						<label for="sidebar-search" class="sr-only">Search</label>
+						<label for="sidebar-search" class="sr-only">{{ t('common.search') }}</label>
 						<div class="relative">
 							<div class="flex absolute inset-y-0 left-0 items-center pl-3 pointer-events-none">
 								<svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="currentColor"
@@ -108,16 +111,16 @@ const logout = () => {
 							</div>
 							<input type="text" name="search" id="sidebar-search"
 								class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full pl-10 p-2 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
-								placeholder="Search" />
+								:placeholder="t('common.search')" />
 						</div>
 					</form>
 					<ul class="space-y-2">
 						<li>
-							<NavLink :href="route('dashboard')" :active="route().current('dashboard')"
+								<NavLink :href="route('dashboard')" :active="route().current('dashboard')"
 								class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
 								<Squares2X2Icon
 									class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white" />
-								<span class="ml-3">Dashboard</span>
+								<span class="ml-3">{{ t('dashboard.title') }}</span>
 							</NavLink>
 						</li>
 						<li>
@@ -125,7 +128,7 @@ const logout = () => {
 								class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
 								<UsersIcon
 									class="w-6 h-6  transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white" />
-								<span class="ml-3">Clients</span>
+								<span class="ml-3">{{ t('clients.title') }}</span>
 							</NavLink>
 						</li>
 						<li>
@@ -133,23 +136,33 @@ const logout = () => {
 								class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
 								<BoltIcon
 									class="w-6 h-6transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white" />
-								<span class="ml-3">Pets</span>
+								<span class="ml-3">{{ t('pets.title') }}</span>
 							</NavLink>
 						</li>
 						<li>
-							<NavLink :href="route('appointments')" :active="route().current('appointments')"
+							<NavLink :href="route('recurring-treatments.index')" :active="route().current('recurring-treatments.index')"
 								class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
-								<CalendarDaysIcon
-									class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white" />
-								<span class="ml-3">Appointments</span>
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+									class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
+								</svg>
+								<span class="ml-3">Traitements Récurrents</span>
 							</NavLink>
 						</li>
 						<li>
-							<NavLink :href="route('items')" :active="route().current('items')"
+							<NavLink :href="route('breeds.photo-selector')" :active="route().current('breeds.photo-selector')"
 								class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
-								<BeakerIcon
+								<PhotoIcon
 									class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white" />
-								<span class="ml-3">Inventory</span>
+								<span class="ml-3">Photos de Races</span>
+							</NavLink>
+						</li>
+						<li>
+							<NavLink :href="route('parameters.index')" :active="route().current('parameters.index')"
+								class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
+								<Cog6ToothIcon
+									class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white" />
+								<span class="ml-3">Paramètres SMS</span>
 							</NavLink>
 						</li>
 					</ul>

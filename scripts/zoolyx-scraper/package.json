@@ -1,0 +1,15 @@
+{
+  "name": "zoolyx-scraper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "scrape": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "playwright": "^1.48.0",
+    "axios": "^1.7.7"
+  }
+}

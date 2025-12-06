@@ -16,6 +16,7 @@ class Medication extends Model
 		'administered_at',
 		'dosage',
 		'frequency',
+		'reminder_date',
 		'administering_veterinarian',
 		'notes',
 	];

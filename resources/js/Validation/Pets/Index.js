@@ -42,27 +42,61 @@ export const validateForm = (form) => {
 	}
 
 	// Validate age
-	if (form.age !== null && form.age !== '' && typeof form.age !== 'number') {
-			errors.value.age = 'This field must be an integer';
-	} else if (form.age === null || form.age === '') {
-			delete errors.value.age;
+	// Validate birth_date (optional) - must be a valid date not in the future
+	if (form.birth_date !== null && form.birth_date !== undefined && form.birth_date !== '') {
+		const parsed = Date.parse(form.birth_date);
+		if (isNaN(parsed)) {
+			errors.value.birth_date = 'This field must be a valid date';
+		} else {
+			const selected = new Date(parsed);
+			const today = new Date();
+			if (selected > today) {
+				errors.value.birth_date = 'Birth date cannot be in the future';
+			}
+		}
+	} else {
+		delete errors.value.birth_date;
 	}
 
 	// Validate gender
-	if (form.gender !== null && typeof form.gender !== 'string') {
+	const allowedGenders = ['Femelle','Femelle Stérilisée','Male','Male castré',''];
+	if (form.gender !== null && form.gender !== undefined && form.gender !== '') {
+		if (typeof form.gender !== 'string') {
 			errors.value.gender = 'This field must be a string';
-	} else if (form.gender === null || form.gender === '') {
-			delete errors.value.gender;
-	} else if (form.gender && !form.gender.trim()) {
-			errors.value.gender = 'This field cannot be only spaces';
+		} else if (!allowedGenders.includes(form.gender)) {
+			errors.value.gender = 'Invalid gender selected';
+		}
+	} else {
+		delete errors.value.gender;
 	}
 
-	// Validate photo
-	if (form.photo && form.photo.file && !form.photo.file.type.match('image.*')) {
-			errors.value.photo = 'This field must be an image file';
-	} else if (!form.photo || !form.photo.file) {
-			delete errors.value.photo;
+	// Validate chip_number
+	if (form.chip_number !== null && form.chip_number !== undefined && form.chip_number !== '') {
+		if (typeof form.chip_number !== 'string') {
+			errors.value.chip_number = 'This field must be a string';
+		} else if (!form.chip_number.trim()) {
+			errors.value.chip_number = 'This field cannot be only spaces';
+		}
+	} else {
+		delete errors.value.chip_number;
 	}
+
+	    // Validate photo: allow jpg/png/heic/heif and max 4MB
+	    if (form.photo && form.photo.file) {
+		    const file = form.photo.file;
+		    const maxSize = 4 * 1024 * 1024; // 4MB in bytes
+		    const name = file.name || '';
+		    const ext = name.split('.').pop().toLowerCase();
+		    const allowedExt = ['png', 'jpg', 'jpeg', 'heic', 'heif'];
+
+		    if (!file.type.match('image.*') && !allowedExt.includes(ext)) {
+			    errors.value.photo = 'This field must be an image file (PNG, JPG or HEIC)';
+		    } else if (file.size > maxSize) {
+			    errors.value.photo = 'Image must be 4MB or smaller';
+		    }
+	    } else if (!form.photo || !form.photo.file) {
+		    delete errors.value.photo;
+	    }
 };
 
 export const clearError = (field) => {

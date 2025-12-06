@@ -40,12 +40,8 @@ class GalleryService
   {
     $galleries = Image::where('pet_id', $petId)->get();
 
-    // Map each gallery item to add the asset URL to the path
-    $galleries->map(function ($gallery) {
-      $gallery->path = asset($gallery->path);
-      return $gallery;
-    });
-
+    // Return raw paths (storage/... or lab_reports/...) without asset() wrapper
+    // Frontend will prepend base URL when needed
     return $galleries;
   }
 

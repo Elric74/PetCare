@@ -24,9 +24,10 @@ class MedicalHistoryRequest extends FormRequest
     {
         return [
             'histories' => ['required', 'array'],
-            'histories.*.condition' => ['required', 'string'],
+            'histories.*.condition' => ['required', 'string', 'in:Visite,Opération,Urgence'],
             'histories.*.diagnosis_date' => ['required', 'date'],
             'histories.*.treatment' => ['nullable', 'string'],
+            'histories.*.weight_g' => ['nullable', 'integer', 'min:0'],
             'histories.*.notes' => ['nullable', 'string'],
         ];
     }

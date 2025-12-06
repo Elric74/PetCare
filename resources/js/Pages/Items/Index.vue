@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, watch, nextTick } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useI18n } from 'vue-i18n';
 import { PlusSmallIcon, EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import Pagination from '@/Components/Pagination.vue'
 import SearchTable from '@/Components/SearchTable.vue'
@@ -13,6 +14,8 @@ onMounted(() => {
     initFlowbite();
     fetchItems();
 })
+
+const { t } = useI18n();
 
 const toast = useToast();
 const meta = ref({})
@@ -33,7 +36,7 @@ const fetchItems = async (page = 1) => {
 const handleSearch = async ({ search, keywords }) => {
     if (!keywords) {
         // Show a toast error
-        toast.warning('Enter a search term')
+        toast.warning(t('items.enter_search_term'))
     } else {
         // If not empty, perform the search
         items.value = await search('/items/search');
@@ -66,12 +69,12 @@ const togglePetSelection = (ItemId) => {
 
 const deleteItem = (id) => {
     Swal.fire({
-        title: 'Delete Item?',
-        text: 'Are you sure you want to delete this item?',
+        title: t('items.delete_item_title'),
+        text: t('items.delete_item_text'),
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Yes, delete it',
-        cancelButtonText: 'No, keep it'
+        confirmButtonText: t('items.yes_delete'),
+        cancelButtonText: t('items.no_keep')
     }).then((result) => {
         if (result.isConfirmed) {
             axios.delete(`/items/${id}`)
@@ -89,12 +92,12 @@ const deleteItem = (id) => {
 const handleBulkDelete = () => {
     if (selectedItemIds.value.length > 0) {
         Swal.fire({
-            title: 'Delete Selected Items?',
-            text: `You have selected ${selectedItemIds.value.length} item(s). Do you want to continue?`,
+            title: t('items.delete_selected_title'),
+            text: t('items.delete_selected_text', { count: selectedItemIds.value.length }),
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Yes, delete them',
-            cancelButtonText: 'No, keep them'
+            confirmButtonText: t('items.yes_delete'),
+            cancelButtonText: t('items.no_keep')
         }).then((result) => {
             if (result.isConfirmed) {
                 axios.delete('/items/bulk-delete/selected', { data: { selectedIds: selectedItemIds.value } })
@@ -122,10 +125,10 @@ const editItem = (id) => {
 </script>
 
 <template>
-    <AppLayout title="Items">
+    <AppLayout :title="t('items.title')">
         <template #header>
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                Inventory
+                {{ t('items.title') }}
             </h2>
         </template>
 
@@ -137,7 +140,7 @@ const editItem = (id) => {
                             class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4">
                             <div class="w-full md:w-1/2">
                                 <form class="flex items-center">
-                                    <label for="simple-search" class="sr-only">Search</label>
+                                    <label for="simple-search" class="sr-only">{{ t('items.enter_search_term') }}</label>
                                     <div class="relative w-full">
                                         <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                                             <svg aria-hidden="true" class="w-5 h-5 text-gray-500 dark:text-gray-400"
@@ -161,7 +164,7 @@ const editItem = (id) => {
 
                                 <Link :href="route('items.create')"
                                     class="flex items-center justify-center text-white bg-indigo-700 hover:bg-indigo-800 focus:ring-4 focus:ring-indigo-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-indigo-600 dark:hover:bg-indigo-700 focus:outline-none dark:focus:ring-indigo-800">
-                                <PlusSmallIcon class="w-5 h-5 -ml-1 mr-2" /> New Item
+                                <PlusSmallIcon class="w-5 h-5 -ml-1 mr-2" /> {{ t('items.new_item') }}
                                 </Link>
                             </div>
                         </div>
@@ -210,10 +213,10 @@ const editItem = (id) => {
                                                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                                                         </svg>
                                                     </div>
-                                                    <h1 class="mt-3 text-lg text-gray-400 dark:text-white">No items found</h1>
+                                                    <h1 class="mt-3 text-lg text-gray-400 dark:text-white">{{ t('items.no_items_found') }}</h1>
                                                     <div class="flex flex-col sm:flex-row items-center mt-4 sm:mx-auto gap-y-3 sm:gap-x-3">
                                                         <button @click="handleClear" class="px-5 py-2 text-sm text-gray-700 transition-colors duration-200 bg-white border rounded-lg sm:w-auto dark:hover:bg-gray-800 dark:bg-gray-900 hover:bg-gray-100 dark:text-gray-200 dark:border-gray-700">
-                                                            Clear Search
+                                                            {{ t('items.clear_search') }}
                                                         </button>
 
                                                         <button class="flex items-center justify-center px-5 py-2 text-sm tracking-wide text-white transition-colors duration-200 bg-indigo-700 rounded-lg shrink-0 sm:w-auto gap-x-2 hover:bg-indigo-800 dark:hover:bg-indigo-800 dark:bg-indigo-700">
@@ -221,7 +224,7 @@ const editItem = (id) => {
                                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                             </svg>
 
-                                                            <span>Add Item</span>
+                                                            <span>{{ t('items.add_item') }}</span>
                                                         </button>
                                                     </div>
                                                 </div>
@@ -248,13 +251,13 @@ const editItem = (id) => {
                                         <Link :href="route('items.edit', { slug: item.slug })"
                                             class="inline-flex items-center p-0.5 text-sm font-medium text-center text-gray-500 hover:text-gray-800 rounded-lg focus:outline-none dark:text-gray-400 dark:hover:text-gray-100">
                                         <PencilSquareIcon class="w-5 h-5 text-indigo-500 hover:text-indigo-800 mr-1" />
-                                        <span class="sr-only">Edit</span>
+                                        <span class="sr-only">{{ t('items.edit') }}</span>
                                         </Link>
                                         <button @click="deleteItem(item.id)"
                                             class="inline-flex items-center p-0.5 text-sm font-medium text-center text-gray-500 hover:text-gray-800 rounded-lg focus:outline-none dark:text-gray-400 dark:hover:text-gray-100"
                                             type="button">
                                             <TrashIcon class="w-5 h-5 text-red-500 hover:text-red-800" />
-                                            <span class="sr-only">Delete</span>
+                                            <span class="sr-only">{{ t('items.delete') }}</span>
                                         </button>
                                     </td>
                                 </tr>

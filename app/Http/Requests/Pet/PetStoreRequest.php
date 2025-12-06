@@ -26,10 +26,18 @@ class PetStoreRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'species_id' => ['required', 'integer'],
             'breed_id' => ['nullable', 'integer'],
-            'age' => ['nullable', 'integer'],
-            'gender' => ['nullable', 'string', 'max:255'],
+            //'age' removed in favor of birth_date
+            'birth_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'gender' => ['nullable', 'string', 'max:255', \Illuminate\Validation\Rule::in(['Femelle','Male','À déterminer'])],
+            'is_sterilized' => ['nullable', 'boolean'],
+            'sterilized_at' => ['nullable', 'date', 'before_or_equal:today'],
+            'chip_number' => ['nullable', 'string', 'max:255', 'unique:pets,chip_number'],
             'client_id' => ['required', 'integer'],
-            'photo' => ['nullable', 'image', 'mimes:jpeg,png,jpg', 'max:1024'],
+            // allow HEIC/HEIF and increase max to 4MB
+            // Use 'file' instead of 'image' because PHP's image detection may not recognise HEIC/HEIF
+            'photo' => ['nullable', 'file', 'mimes:jpeg,png,jpg,heic,heif', 'max:4096'],
+            'decedee' => ['nullable', 'boolean'],
+            'date_deces' => ['nullable', 'date', 'before_or_equal:today'],
         ];
     }
 }

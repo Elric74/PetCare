@@ -12,6 +12,14 @@ class MedicationService
 		$savedMedications = [];
 
 		foreach ($medications as $medication) {
+			// Ensure pet_id is set
+			$medication['pet_id'] = $petId;
+
+			// Compute reminder_date based on frequency and administered_at
+			if (!empty($medication['administered_at']) && !empty($medication['frequency'])) {
+				$medication['reminder_date'] = $this->computeReminderDate($medication['administered_at'], $medication['frequency']);
+			}
+
 			if (isset($medication['id'])) {
 				Medication::find($medication['id'])->update($medication);
 			} else {
@@ -29,7 +37,10 @@ class MedicationService
 
 	public function fetchMedications($petId)
 	{
-		$medications = Medication::where('pet_id', $petId)->get();
+		$medications = Medication::where('pet_id', $petId)
+			->orderBy('administered_at', 'desc')
+			->orderBy('created_at', 'desc')
+			->get();
 
 		return $medications;
 
@@ -49,5 +60,33 @@ class MedicationService
 			'message' => 'Medication successfully deleted!',
 			'status' => 200
 		];
+	}
+
+	private function computeReminderDate(string $administeredAt, string $frequency): string
+	{
+		// frequency codes like '1m', '3m', '6m', '1y', '2y'
+		$date = new \DateTime($administeredAt);
+		switch ($frequency) {
+			case '1m':
+				$date->modify('+1 month');
+				break;
+			case '3m':
+				$date->modify('+3 months');
+				break;
+			case '6m':
+				$date->modify('+6 months');
+				break;
+			case '1y':
+				$date->modify('+1 year');
+				break;
+			case '2y':
+				$date->modify('+2 years');
+				break;
+			default:
+				// If an unknown code, do not change date (or set null)
+				// Here we default to administered date without shift
+				break;
+		}
+		return $date->format('Y-m-d');
 	}
 }
