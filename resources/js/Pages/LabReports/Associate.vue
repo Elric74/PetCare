@@ -1,6 +1,6 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { useToast } from 'vue-toastification'
 
@@ -18,6 +18,8 @@ const props = defineProps({
 const toast = useToast()
 const selectedByReportId = reactive({})
 const linkingByReportId = reactive({})
+const creatingClientByReportId = reactive({})
+const creatingPetByReportId = reactive({})
 const showAssociated = ref(false)
 const matchMetaByReportId = reactive({})
 
@@ -98,12 +100,38 @@ const selectClassByState = (state) => {
   return 'bg-white border-gray-300 focus:border-indigo-700'
 }
 
-for (const report of props.labReports) {
-  const meta = buildMatchMeta(report)
-  matchMetaByReportId[report.id] = meta
-  selectedByReportId[report.id] = report.pet_id || meta.suggestedPetId || ''
-  linkingByReportId[report.id] = false
+const syncRowsState = () => {
+  for (const report of props.labReports) {
+    const meta = buildMatchMeta(report)
+    matchMetaByReportId[report.id] = meta
+
+    if (!selectedByReportId[report.id]) {
+      selectedByReportId[report.id] = report.pet_id || meta.suggestedPetId || ''
+    }
+
+    if (!(report.id in linkingByReportId)) {
+      linkingByReportId[report.id] = false
+    }
+
+    if (!(report.id in creatingClientByReportId)) {
+      creatingClientByReportId[report.id] = false
+    }
+
+    if (!(report.id in creatingPetByReportId)) {
+      creatingPetByReportId[report.id] = false
+    }
+  }
 }
+
+syncRowsState()
+
+watch(
+  () => [props.labReports, props.pets],
+  () => {
+    syncRowsState()
+  },
+  { deep: true }
+)
 
 const visibleReports = computed(() => {
   if (showAssociated.value) {
@@ -146,6 +174,50 @@ const associateReport = async (report) => {
     toast.error(serverMessage || 'Erreur lors de l’association.')
   } finally {
     linkingByReportId[report.id] = false
+  }
+}
+
+const createClientFromReport = async (report) => {
+  creatingClientByReportId[report.id] = true
+
+  try {
+    const response = await axios.post(
+      route('lab-reports.create-client', { labReport: report.id })
+    )
+
+    report.owner_client_exists = true
+    syncRowsState()
+    router.reload({ only: ['labReports', 'pets', 'notifications'] })
+    toast.success(response?.data?.message || 'Client créé avec succès.')
+  } catch (error) {
+    const serverMessage = error?.response?.data?.message
+    toast.error(serverMessage || 'Erreur lors de la création du client.')
+  } finally {
+    creatingClientByReportId[report.id] = false
+  }
+}
+
+const createPetFromReport = async (report) => {
+  creatingPetByReportId[report.id] = true
+
+  try {
+    const response = await axios.post(
+      route('lab-reports.create-pet', { labReport: report.id })
+    )
+
+    if (response?.data?.pet?.id) {
+      report.pet_id = response.data.pet.id
+      selectedByReportId[report.id] = response.data.pet.id
+    }
+
+    syncRowsState()
+    router.reload({ only: ['labReports', 'pets', 'notifications'] })
+    toast.success(response?.data?.message || 'Animal créé avec succès.')
+  } catch (error) {
+    const serverMessage = error?.response?.data?.message
+    toast.error(serverMessage || 'Erreur lors de la création de l’animal.')
+  } finally {
+    creatingPetByReportId[report.id] = false
   }
 }
 </script>
@@ -218,14 +290,34 @@ const associateReport = async (report) => {
               </select>
             </td>
             <td class="px-4 py-3">
-              <button
-                type="button"
-                class="rounded-md bg-indigo-700 px-4 py-2 text-white hover:bg-indigo-800 disabled:opacity-50"
-                :disabled="linkingByReportId[report.id]"
-                @click="associateReport(report)"
-              >
-                {{ linkingByReportId[report.id] ? 'Association...' : 'Associer' }}
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="rounded-md bg-indigo-700 px-4 py-2 text-white hover:bg-indigo-800 disabled:opacity-50"
+                  :disabled="linkingByReportId[report.id]"
+                  @click="associateReport(report)"
+                >
+                  {{ linkingByReportId[report.id] ? 'Association...' : 'Associer' }}
+                </button>
+                <button
+                  v-if="!report.owner_client_exists"
+                  type="button"
+                  class="rounded-md bg-emerald-700 px-4 py-2 text-white hover:bg-emerald-800 disabled:opacity-50"
+                  :disabled="creatingClientByReportId[report.id]"
+                  @click="createClientFromReport(report)"
+                >
+                  {{ creatingClientByReportId[report.id] ? 'Création...' : 'Créer le client' }}
+                </button>
+                <button
+                  v-if="!report.pet_id"
+                  type="button"
+                  class="rounded-md bg-teal-700 px-4 py-2 text-white hover:bg-teal-800 disabled:opacity-50"
+                  :disabled="creatingPetByReportId[report.id]"
+                  @click="createPetFromReport(report)"
+                >
+                  {{ creatingPetByReportId[report.id] ? 'Création...' : 'Créer animal' }}
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>

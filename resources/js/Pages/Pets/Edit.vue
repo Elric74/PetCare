@@ -710,11 +710,11 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.multiselect>>>.multiselect__tags {
+.multiselect :deep(.multiselect__tags) {
 	border: 1px solid #D1D5DBFF;
 }
 
-.multiselect.error>>>.multiselect__tags {
+.multiselect.error :deep(.multiselect__tags) {
 	border: 1px solid #f05252;
 }
 

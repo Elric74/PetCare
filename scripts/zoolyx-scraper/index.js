@@ -147,6 +147,52 @@ function toAbsoluteUrl(url) {
   return `https://www2.zoolyx.be/${url}`
 }
 
+function parseRequestedPage() {
+  const raw = process.argv[2]
+  if (!raw) return 1
+
+  const page = Number.parseInt(raw, 10)
+  if (Number.isNaN(page) || page < 1) {
+    console.log(`⚠️ Numéro de page invalide "${raw}", utilisation de la page 1`)
+    return 1
+  }
+
+  return page
+}
+
+function appendPageQuery(url, page) {
+  const hasQuery = String(url).includes('?')
+  return `${url}${hasQuery ? '&' : '?'}page=${page}`
+}
+
+async function getReportsPageHtml(session, requestedPage) {
+  const firstPageResponse = await session.get(ZOOLYX_URL)
+  if (requestedPage === 1) {
+    return firstPageResponse.data
+  }
+
+  const $ = cheerio.load(firstPageResponse.data)
+  const pageText = String(requestedPage)
+  const pageLink = $('a')
+    .filter((_, el) => $(el).text().trim() === pageText)
+    .first()
+    .attr('href')
+
+  // Prefer the exact pagination link found in HTML.
+  if (pageLink) {
+    const targetUrl = toAbsoluteUrl(pageLink)
+    console.log(`📄 Ouverture de la page ${requestedPage} via pagination: ${targetUrl}`)
+    const pageResponse = await session.get(targetUrl)
+    return pageResponse.data
+  }
+
+  // Fallback for installations where pagination uses query params.
+  const fallbackUrl = appendPageQuery(ZOOLYX_URL, requestedPage)
+  console.log(`📄 Lien pagination introuvable, fallback URL: ${fallbackUrl}`)
+  const fallbackResponse = await session.get(fallbackUrl)
+  return fallbackResponse.data
+}
+
 function isPdfResponse(response) {
   const contentType = String(response?.headers?.['content-type'] || '').toLowerCase()
   if (contentType.includes('application/pdf')) {
@@ -279,12 +325,12 @@ async function loginToZoolyx() {
   }
 }
 
-async function scrapeReports(session) {
+async function scrapeReports(session, requestedPage = 1) {
   try {
-    console.log('📋 Récupération de la liste des rapports...')
+    console.log(`📋 Récupération de la liste des rapports (page ${requestedPage})...`)
 
-    const response = await session.get(ZOOLYX_URL)
-    const $ = cheerio.load(response.data)
+    const pageHtml = await getReportsPageHtml(session, requestedPage)
+    const $ = cheerio.load(pageHtml)
 
     const reports = []
 
@@ -346,7 +392,7 @@ async function scrapeReports(session) {
       }
     })
 
-    console.log(`📊 Trouvé ${reports.length} rapports`)
+    console.log(`📊 Trouvé ${reports.length} rapports sur la page ${requestedPage}`)
     return reports
 
   } catch (error) {
@@ -464,8 +510,11 @@ async function scrape() {
   ensureDir(path.resolve(DOWNLOAD_DIR))
 
   try {
+    const requestedPage = parseRequestedPage()
+    console.log(`🎯 Page demandée: ${requestedPage}`)
+
     const session = await loginToZoolyx()
-    const reports = await scrapeReports(session)
+    const reports = await scrapeReports(session, requestedPage)
     const existingStatuses = await fetchExistingStatuses(reports.map((r) => r.id))
 
     console.log(`🚀 Traitement de ${reports.length} rapports...`)

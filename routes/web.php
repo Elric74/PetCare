@@ -178,6 +178,8 @@ Route::middleware([
     // (Lab reports ingestion moved to routes/api.php to avoid CSRF & session middleware)
     Route::get('/lab-reports/associate', [LabReportAssociationController::class, 'index'])->name('lab-reports.associate.index');
     Route::post('/lab-reports/{labReport}/associate', [LabReportAssociationController::class, 'associate'])->name('lab-reports.associate');
+    Route::post('/lab-reports/{labReport}/create-client', [LabReportAssociationController::class, 'createClientFromReport'])->name('lab-reports.create-client');
+    Route::post('/lab-reports/{labReport}/create-pet', [LabReportAssociationController::class, 'createPetFromReport'])->name('lab-reports.create-pet');
 
     // Inventaire Médoc
     Route::get('/inventaire-medoc/create', [InventoryMedocController::class, 'create'])->name('inventaire-medoc.create');

@@ -26,6 +26,18 @@ DOWNLOAD_DIR=downloads
 npm run scrape
 ```
 
+Scraper une page précise (pagination Zoolyx) :
+
+```bash
+npm run scraper -- 2
+```
+
+Vous pouvez aussi garder la commande historique :
+
+```bash
+npm run scrape -- 2
+```
+
 ## Fonctionnement
 
 1. **Connexion HTTP** : Utilise axios pour se connecter à Zoolyx
@@ -44,7 +56,7 @@ npm run scrape
 
 - Moins robuste face aux changements de structure HTML de Zoolyx
 - Ne gère pas le JavaScript côté client complexe
-- Limité aux 5 premiers rapports pour les tests
+- Le nombre de rapports dépend de la pagination Zoolyx (15 par page actuellement)
 
 ## Dépannage
 
