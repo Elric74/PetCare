@@ -28,5 +28,6 @@ public/build/
 scripts/zoolyx-scraper/downloads/
 scripts/zoolyx-scraper/debug_after_login.png
 scripts/zoolyx-scraper/*.deb
+scripts/zoolyx-scraper - Copie/
 *.crt
 *.pfx
