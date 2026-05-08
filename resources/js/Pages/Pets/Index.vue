@@ -25,12 +25,20 @@ const isLoading = ref(false)
 const selectedPetIds = ref([])
 const selectAll = ref(false)
 const anyCheckboxSelected = ref(false)
+const selectedSpeciesFilter = ref(null)
+const speciesCounts = ref({ cats: 0, dogs: 0, others: 0 })
 
 const fetchPets = async (page = 1) => {
     isLoading.value = true
-    const response = await axios.get('/pets/fetchAllPets', { params: { page } })
+    const response = await axios.get('/pets/fetchAllPets', {
+        params: {
+            page,
+            species_filter: selectedSpeciesFilter.value,
+        },
+    })
     pets.value = response.data.pets.data
     meta.value = response.data.meta
+    speciesCounts.value = response.data.species_counts || { cats: 0, dogs: 0, others: 0 }
     isLoading.value = false
 }
 
@@ -45,6 +53,16 @@ const handleSearch = async ({ search, keywords }) => {
 }
 const handleClear = () => {
     fetchPets();
+}
+
+const toggleSpeciesFilter = async (group) => {
+    selectedSpeciesFilter.value = selectedSpeciesFilter.value === group ? null : group
+    await fetchPets(1)
+}
+
+const clearSpeciesFilter = async () => {
+    selectedSpeciesFilter.value = null
+    await fetchPets(1)
 }
 watch(selectAll, (newVal) => {
     pets.value.forEach(pet => {
@@ -164,6 +182,50 @@ const sendSms = async (petId) => {
                                         <SearchTable @search="handleSearch" @clear="handleClear" />
                                     </div>
                                 </form>
+                                <div class="mt-3 flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        class="rounded-full border px-3 py-1 text-sm font-medium transition-colors"
+                                        :class="selectedSpeciesFilter === 'cats'
+                                            ? 'border-indigo-700 bg-indigo-700 text-white'
+                                            : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-400 hover:text-indigo-700'"
+                                        @click="toggleSpeciesFilter('cats')"
+                                    >
+                                        Chats ({{ speciesCounts.cats }})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-full border px-3 py-1 text-sm font-medium transition-colors"
+                                        :class="selectedSpeciesFilter === 'dogs'
+                                            ? 'border-indigo-700 bg-indigo-700 text-white'
+                                            : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-400 hover:text-indigo-700'"
+                                        @click="toggleSpeciesFilter('dogs')"
+                                    >
+                                        Chiens ({{ speciesCounts.dogs }})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-full border px-3 py-1 text-sm font-medium transition-colors"
+                                        :class="selectedSpeciesFilter === 'others'
+                                            ? 'border-indigo-700 bg-indigo-700 text-white'
+                                            : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-400 hover:text-indigo-700'"
+                                        @click="toggleSpeciesFilter('others')"
+                                    >
+                                        Autres ({{ speciesCounts.others }})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-full border px-3 py-1 text-sm font-medium transition-colors"
+                                        :class="selectedSpeciesFilter
+                                            ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                                            : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'"
+                                        :disabled="!selectedSpeciesFilter"
+                                        @click="clearSpeciesFilter"
+                                        title="Supprimer le filtre"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
                             </div>
                             <div
                                 class="w-full md:w-auto flex flex-col md:flex-row space-y-2 md:space-y-0 items-stretch md:items-center justify-end md:space-x-3 flex-shrink-0">
@@ -254,7 +316,7 @@ const sendSms = async (petId) => {
                                     </th>
                                     <td class="px-4 py-1 lg:py-3 font-medium text-gray-900 whitespace-nowrap dark:text-white">
                                         <span class="align-middle">{{ pet.name }}</span>
-                                        <span v-if="pet.breed_id === 1111 || pet.breed_id === 1112" class="ml-1 text-sm" title="Nouveau">🆕</span>
+                                        <span v-if="Number(pet.is_new) === 1" class="ml-1 text-sm" title="Nouveau">🆕</span>
                                         <span v-if="pet.decedee" title="Décédé" class="ml-2 inline-block align-middle">
                                             <!-- Small Christian cross icon (neutral color) -->
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="w-4 h-4 text-gray-500" aria-hidden="true">

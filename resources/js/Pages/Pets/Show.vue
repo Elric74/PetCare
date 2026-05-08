@@ -265,7 +265,17 @@ const promptSpecifyBirthDate = async () => {
 
 						<div v-if="pet.client && pet.client.name" class="flex items-center mt-4 text-gray-700 dark:text-gray-200">
 							<ArrowSmallRightIcon class="w-6 h-6" />
-							<h1 class="px-2 text-sm">Propriétaire: {{ pet.client.name }}</h1>
+							<h1 class="px-2 text-sm">
+								Propriétaire:
+								<Link
+									v-if="pet.client.slug"
+									:href="route('clients.show', { slug: pet.client.slug })"
+									class="ml-2 inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition-colors"
+								>
+									{{ pet.client.name }}
+								</Link>
+								<span v-else class="ml-1">{{ pet.client.name }}</span>
+							</h1>
 						</div>
 
 						<div v-if="pet.gender" class="flex items-center mt-4 text-gray-700 dark:text-gray-200">

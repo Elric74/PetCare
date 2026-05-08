@@ -331,7 +331,10 @@ class PetController extends Controller
 
 	public function fetchAllPets(Request $request): JsonResponse
 	{
-		$pets = $this->petService->fetchAllPets($request->query('page', 1));
+		$pets = $this->petService->fetchAllPets(
+			$request->query('page', 1),
+			$request->query('species_filter')
+		);
 		return response()->json($pets, 201);
 	}
 

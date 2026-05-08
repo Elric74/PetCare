@@ -818,7 +818,7 @@ class LabReportAssociationController extends Controller
         }
 
         $resolvedBirthDate = $details['birth_date'] ?? null;
-        $resolvedGender = $this->resolveGender($details['sex_text'] ?? null);
+        $resolvedGender = $this->resolveGender($details['sex_text'] ?? null) ?? 'Femelle';
         $resolvedBreedId = $this->resolveBreedId($speciesId, $details['breed_text'] ?? null);
 
         $existingPet = Pet::query()

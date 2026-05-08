@@ -10,6 +10,95 @@ use Illuminate\Support\Facades\Storage;
 
 class PetService
 {
+    private function applySpeciesFilter($query, ?string $speciesFilter)
+    {
+        if (!$speciesFilter) {
+            return $query;
+        }
+
+        if ($speciesFilter === 'cats') {
+            return $query->whereHas('species', function ($speciesQuery) {
+                $speciesQuery->whereRaw('LOWER(name) LIKE ?', ['%chat%'])
+                    ->orWhereRaw('LOWER(name) LIKE ?', ['%cat%']);
+            });
+        }
+
+        if ($speciesFilter === 'dogs') {
+            return $query->whereHas('species', function ($speciesQuery) {
+                $speciesQuery->whereRaw('LOWER(name) LIKE ?', ['%chien%'])
+                    ->orWhereRaw('LOWER(name) LIKE ?', ['%dog%']);
+            });
+        }
+
+        if ($speciesFilter === 'others') {
+            return $query->whereHas('species', function ($speciesQuery) {
+                $speciesQuery
+                    ->whereRaw('LOWER(name) NOT LIKE ?', ['%chat%'])
+                    ->whereRaw('LOWER(name) NOT LIKE ?', ['%cat%'])
+                    ->whereRaw('LOWER(name) NOT LIKE ?', ['%chien%'])
+                    ->whereRaw('LOWER(name) NOT LIKE ?', ['%dog%']);
+            });
+        }
+
+        return $query;
+    }
+
+    private function getSpeciesCounts(): array
+    {
+        $cats = Pet::query()
+            ->whereHas('species', function ($speciesQuery) {
+                $speciesQuery->whereRaw('LOWER(name) LIKE ?', ['%chat%'])
+                    ->orWhereRaw('LOWER(name) LIKE ?', ['%cat%']);
+            })
+            ->count();
+
+        $dogs = Pet::query()
+            ->whereHas('species', function ($speciesQuery) {
+                $speciesQuery->whereRaw('LOWER(name) LIKE ?', ['%chien%'])
+                    ->orWhereRaw('LOWER(name) LIKE ?', ['%dog%']);
+            })
+            ->count();
+
+        $total = Pet::query()->count();
+        $others = max(0, $total - $cats - $dogs);
+
+        return [
+            'cats' => $cats,
+            'dogs' => $dogs,
+            'others' => $others,
+        ];
+    }
+
+    private function latestPetIds(int $limit = 5): array
+    {
+        return Pet::query()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    private function applyNewPetsOrdering($query, array $latestIds)
+    {
+        if (empty($latestIds)) {
+            return $query
+                ->select('pets.*')
+                ->selectRaw('0 as is_new')
+                ->orderBy('name', 'ASC');
+        }
+
+        $placeholders = implode(',', array_fill(0, count($latestIds), '?'));
+        $isNewSql = "CASE WHEN pets.id IN ($placeholders) THEN 1 ELSE 0 END";
+
+        return $query
+            ->select('pets.*')
+            ->selectRaw("$isNewSql as is_new", $latestIds)
+            ->orderByRaw("$isNewSql DESC", $latestIds)
+            ->orderBy('name', 'ASC');
+    }
+
     private function isTruthy($value): bool
     {
         // Accept common truthy forms from form submissions
@@ -87,21 +176,22 @@ class PetService
         $pet->save();
     }
 
-    public function fetchAllPets($page)
+    public function fetchAllPets($page, ?string $speciesFilter = null)
     {
         $perPage = 10;
+        $latestIds = $this->latestPetIds(5);
 
-        // Order living pets first (decedee = false / 0), then deceased (decedee = true / 1).
-        // Within each group, sort by name alphabetically (A → Z).
-        $pets = Pet::with('species', 'breed')
-            ->orderByRaw('COALESCE(decedee, 0) ASC')
-            ->orderBy('name', 'ASC')
+        $petsQuery = Pet::query()->with('species', 'breed');
+        $petsQuery = $this->applySpeciesFilter($petsQuery, $speciesFilter);
+
+        $pets = $this->applyNewPetsOrdering($petsQuery, $latestIds)
             ->paginate($perPage, ['*'], 'page', $page);
 
         return [
             'pets' => $pets,
             'links' => $pets->links(),
             'count' => Pet::count(),
+            'species_counts' => $this->getSpeciesCounts(),
             'meta' => [
                 'currentPage' => $pets->currentPage(),
                 'lastPage' => $pets->lastPage(),
@@ -125,11 +215,13 @@ class PetService
 
     public function search($keywords)
     {
-        return Pet::where('name', 'like', '%' . $keywords . '%')
-            ->with('client', 'species', 'breed')
-            ->orderByRaw('COALESCE(decedee, 0) ASC')
-            ->orderBy('name', 'ASC')
-            ->get();
+        $latestIds = $this->latestPetIds(5);
+
+        $query = Pet::query()
+            ->where('name', 'like', '%' . $keywords . '%')
+            ->with('client', 'species', 'breed');
+
+        return $this->applyNewPetsOrdering($query, $latestIds)->get();
     }
 
     public function searchSpecies($name)
