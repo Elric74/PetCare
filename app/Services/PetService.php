@@ -6,6 +6,7 @@ use App\Models\Breed;
 use App\Models\Pet;
 use App\Models\Species;
 use App\Models\Client;
+use Illuminate\Support\Facades\Storage;
 
 class PetService
 {
@@ -62,38 +63,24 @@ class PetService
     {
         $petId = $pet->id;
         $originalExt = strtolower($photo->getClientOriginalExtension());
-        $directory = public_path('storage/images/pets/' . $petId);
-
-        if (!file_exists($directory)) {
-            mkdir($directory, 0777, true);
-        }
-
+        
+        // Use Laravel Storage (storage/app/public) which has proper permissions
+        $storagePath = 'images/pets/' . $petId;
+        
         $filename = null;
 
-        // If HEIC/HEIF, try to convert to JPEG for browser compatibility using ImageMagick CLI
+        // HEIC files: save as-is (conversion must be done client-side)
+        // Server conversion not possible: ImageMagick lacks libheif, FFmpeg lacks HEVC decoder
         if (in_array($originalExt, ['heic', 'heif'])) {
-            $filename = uniqid() . '.jpg';
-            $outputPath = $directory . DIRECTORY_SEPARATOR . $filename;
-            $inputPath = $photo->getPathname();
-
-            // Try to convert using 'magick' command (ImageMagick CLI)
-            $command = "magick \"{$inputPath}\" -quality 90 \"{$outputPath}\"";
-            $output = [];
-            $return = 0;
-
-            exec($command, $output, $return);
-
-            if ($return !== 0) {
-                // Conversion failed: fall back to saving original file
-                $filename = uniqid() . '.' . $originalExt;
-                $photo->move($directory, $filename);
-            }
-        } else {
-            // Non-HEIC files: save directly
             $filename = uniqid() . '.' . $originalExt;
-            $photo->move($directory, $filename);
+            Storage::disk('public')->putFileAs($storagePath, $photo, $filename);
+        } else {
+            // Non-HEIC files: use Laravel Storage directly
+            $filename = uniqid() . '.' . $originalExt;
+            Storage::disk('public')->putFileAs($storagePath, $photo, $filename);
         }
 
+        // Path for database (relative to public/storage via symlink)
         $photoPath = 'storage/images/pets/' . $petId . '/' . $filename;
 
         $pet->photo = $photoPath;
@@ -126,7 +113,9 @@ class PetService
 
     public function fetchAllSpecies()
     {
-        return Species::paginate(10)->all();
+        return Species::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     public function fetchAllBreeds($speciesId)

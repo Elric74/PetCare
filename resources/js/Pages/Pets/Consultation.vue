@@ -1,6 +1,7 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { ref, defineProps } from 'vue'
+import { Link } from '@inertiajs/vue3'
 import { useI18n } from 'vue-i18n';
 import { TabGroup, TabList, Tab, TabPanels, TabPanel } from '@headlessui/vue'
 import VaccinationsForm from '@/Pages/Pets/Partials/VaccinationsForm.vue'
@@ -69,6 +70,15 @@ const props = defineProps({
 					</TabPanel>
 				</TabPanels>
 			</TabGroup>
+		</div>
+
+		<div class="mt-2">
+			<Link
+				:href="route('pets.show', { slug: pet.slug })"
+				class="inline-flex items-center rounded-md border border-indigo-700 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+			>
+				Retour à la fiche
+			</Link>
 		</div>
 	</AppLayout>
 </template>

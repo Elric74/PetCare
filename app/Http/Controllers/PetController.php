@@ -14,8 +14,11 @@ use Inertia\Response;
 use App\Services\SmsService;
 use App\Models\Vaccination;
 use App\Models\Medication;
+use App\Models\Species;
+use App\Models\Breed;
 use Carbon\Carbon;
 use App\Models\SmsLog;
+use Illuminate\Http\RedirectResponse;
 class PetController extends Controller
 {
 	protected $petService;
@@ -169,9 +172,31 @@ class PetController extends Controller
 		return Inertia::render('Pets/Create');
 	}
 
-	public function show($slug)
+	private function resolvePetFromSlug(string $slug, array $with = []): ?Pet
 	{
-		$pet = Pet::where('slug', $slug)->with('client', 'species', 'breed', 'vaccinations', 'medications', 'medicalHistory', 'surgicalHistory', 'images')->first();
+		$query = Pet::query()->with($with);
+		$pet = (clone $query)->where('slug', $slug)->first();
+		if ($pet) {
+			return $pet;
+		}
+
+		if (preg_match('/-(\d+)$/', $slug, $matches) === 1) {
+			$petId = (int) $matches[1];
+			return (clone $query)->where('id', $petId)->first();
+		}
+
+		return null;
+	}
+
+	public function show(string $slug): Response|RedirectResponse
+	{
+		$pet = $this->resolvePetFromSlug($slug, ['client', 'species', 'breed', 'vaccinations', 'medications', 'medicalHistory', 'surgicalHistory', 'images']);
+		if (!$pet) {
+			abort(404);
+		}
+		if ($slug !== $pet->slug) {
+			return redirect()->route('pets.show', ['slug' => $pet->slug]);
+		}
 
 		if ($pet->photo) {
 			$pet->photo = url('/') . '/' . $pet->photo;
@@ -194,33 +219,50 @@ class PetController extends Controller
 		], 201);
 	}
 
-	public function edit($slug): Response
+	public function edit(string $slug): Response|RedirectResponse
 	{
-		$pet = Pet::where('slug', $slug)->with(['client', 'species', 'breed'])->firstOrFail();
+		$pet = $this->resolvePetFromSlug($slug, ['client', 'species', 'breed']);
+		if (!$pet) {
+			abort(404);
+		}
+		if ($slug !== $pet->slug) {
+			return redirect()->route('pets.edit', ['slug' => $pet->slug]);
+		}
+		$species = Species::query()->orderBy('name')->get(['id', 'name']);
+		$breeds = Breed::query()
+			->where('species_id', $pet->species_id)
+			->orderBy('name')
+			->get(['id', 'name', 'species_id']);
 
 		if ($pet->photo) {
 			$pet->photo = url('/') . '/' . $pet->photo;
 		}
 
 		return Inertia::render('Pets/Edit', [
-			'pet' => $pet
+			'pet' => $pet,
+			'speciesOptions' => $species,
+			'breedOptions' => $breeds,
 		]);
 	}
 
-	public function consultation($slug): Response
+	public function consultation(string $slug): Response|RedirectResponse
 	{
-		$pet = Pet::where('slug', $slug)
-			->with([
-				'client', 
-				'species', 
-				'breed',
-				'vaccinations',
-				'medications',
-				'medicalHistory',
-				'surgicalHistory',
-				'images'
-			])
-			->firstOrFail();
+		$pet = $this->resolvePetFromSlug($slug, [
+			'client',
+			'species',
+			'breed',
+			'vaccinations',
+			'medications',
+			'medicalHistory',
+			'surgicalHistory',
+			'images'
+		]);
+		if (!$pet) {
+			abort(404);
+		}
+		if ($slug !== $pet->slug) {
+			return redirect()->route('pets.consultation', ['slug' => $pet->slug]);
+		}
 
 		if ($pet->photo) {
 			$pet->photo = url('/') . '/' . $pet->photo;
@@ -238,6 +280,38 @@ class PetController extends Controller
 		return response()->json([
 			'message' => 'Pet successfully updated!'
 		], 200);
+	}
+
+	public function quickUpdateGender(Pet $pet, Request $request): JsonResponse
+	{
+		$validated = $request->validate([
+			'gender' => ['required', 'string', \Illuminate\Validation\Rule::in(['Femelle Stérilisée', 'Femelle', 'Male', 'Male castré'])],
+		]);
+
+		$pet->update([
+			'gender' => $validated['gender'],
+		]);
+
+		return response()->json([
+			'message' => 'Genre mis à jour avec succès.',
+			'gender' => $pet->gender,
+		]);
+	}
+
+	public function quickUpdateBirthDate(Pet $pet, Request $request): JsonResponse
+	{
+		$validated = $request->validate([
+			'birth_date' => ['required', 'date', 'before_or_equal:today'],
+		]);
+
+		$pet->update([
+			'birth_date' => $validated['birth_date'],
+		]);
+
+		return response()->json([
+			'message' => 'Date de naissance mise à jour avec succès.',
+			'birth_date' => $pet->birth_date,
+		]);
 	}
 
 	public function destroy($id): JsonResponse

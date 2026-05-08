@@ -17,6 +17,7 @@ use App\Http\Controllers\ParameterController;
 use App\Http\Controllers\EidReaderController;
 use App\Http\Controllers\RecurringTreatmentController;
 use App\Http\Controllers\LabReportController;
+use App\Http\Controllers\LabReportAssociationController;
 use App\Http\Controllers\BreedPhotoController;
 use App\Http\Controllers\InventoryMedocController;
 
@@ -35,12 +36,33 @@ Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
+// Quick login route (no password required for internal use)
+Route::post('/quick-login', function (\Illuminate\Http\Request $request) {
+    $user = \App\Models\User::where('email', $request->email)->first();
+    
+    if ($user) {
+        \Illuminate\Support\Facades\Auth::login($user);
+        $request->session()->regenerate();
+        
+        return redirect()->intended(route('dashboard'));
+    }
+    
+    return back()->withErrors(['email' => 'Utilisateur introuvable']);
+})->name('quick-login');
+
 Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),
     'verified',
 ])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Crocodil Test (Demo)
+    Route::get('/crocodil-test', [\App\Http\Controllers\CrocodilTestController::class, 'index'])->name('crocodil-test.index');
+    Route::post('/crocodil-test/get-deliveries', [\App\Http\Controllers\CrocodilTestController::class, 'getDeliveries']);
+    Route::post('/crocodil-test/get-all-deliveries', [\App\Http\Controllers\CrocodilTestController::class, 'getAllDeliveries']);
+    Route::post('/crocodil-test/get-price-list', [\App\Http\Controllers\CrocodilTestController::class, 'getPriceList']);
+    Route::get('/crocodil-test/export-deliveries', [\App\Http\Controllers\CrocodilTestController::class, 'exportDeliveries']);
 
     // Clients
     Route::get('/clients', [ClientController::class, 'index'])->name('clients');
@@ -71,6 +93,8 @@ Route::middleware([
     Route::get('/pets/{slug}/edit', [PetController::class, 'edit'])->name('pets.edit');
     Route::get('/pets/{slug}/consultation', [PetController::class, 'consultation'])->name('pets.consultation');
     Route::post('/pets/{id}', [PetController::class, 'update'])->name('pets.update');
+    Route::post('/pets/{pet}/quick-gender', [PetController::class, 'quickUpdateGender'])->name('pets.quick-gender');
+    Route::post('/pets/{pet}/quick-birth-date', [PetController::class, 'quickUpdateBirthDate'])->name('pets.quick-birth-date');
     Route::post('/pets/{pet}/send-sms', [PetController::class, 'sendSms'])->name('pets.sendSms');
     Route::post('/pets/{pet}/send-medication-sms', [PetController::class, 'sendMedicationSms'])->name('pets.sendMedicationSms');
     Route::delete('/pets/{id}', [PetController::class, 'destroy'])->name('pets.destroy');
@@ -152,6 +176,8 @@ Route::middleware([
     Route::get('/eid/read-all', [EidReaderController::class, 'readAll'])->name('eid.read.all');
 
     // (Lab reports ingestion moved to routes/api.php to avoid CSRF & session middleware)
+    Route::get('/lab-reports/associate', [LabReportAssociationController::class, 'index'])->name('lab-reports.associate.index');
+    Route::post('/lab-reports/{labReport}/associate', [LabReportAssociationController::class, 'associate'])->name('lab-reports.associate');
 
     // Inventaire Médoc
     Route::get('/inventaire-medoc/create', [InventoryMedocController::class, 'create'])->name('inventaire-medoc.create');
@@ -165,6 +191,7 @@ Route::middleware([
     Route::post('/medicaments/link', [\App\Http\Controllers\MedicamentController::class, 'linkGtinCnk'])->name('medicaments.link');
     // Medicaments listing
     Route::get('/medicaments', [\App\Http\Controllers\MedicamentController::class, 'index'])->name('medicaments.index');
+    Route::post('/medicaments', [\App\Http\Controllers\MedicamentController::class, 'store'])->name('medicaments.store');
     Route::get('/medicaments/{medicament}/edit', [\App\Http\Controllers\MedicamentController::class, 'edit'])->name('medicaments.edit');
     Route::put('/medicaments/{medicament}', [\App\Http\Controllers\MedicamentController::class, 'update'])->name('medicaments.update');
 
@@ -172,4 +199,9 @@ Route::middleware([
     Route::get('/inventory/scan', function () {
         return Inertia::render('Inventory/Scan');
     })->name('inventory.scan');
+    
+    // Inventory list page
+    Route::get('/inventaire-medoc', [InventoryMedocController::class, 'index'])->name('inventaire-medoc.index');
+    Route::get('/inventaire-medoc/edit-prices', [InventoryMedocController::class, 'editPrices'])->name('inventaire-medoc.edit-prices');
+    Route::post('/inventaire-medoc/update-prices', [InventoryMedocController::class, 'updatePrices'])->name('inventaire-medoc.update-prices');
 });

@@ -33,7 +33,7 @@ class BarcodeMatchService
     public function extractDosage(?string $name): ?string
     {
         if (!$name) return null;
-        if (preg_match('/(\d+[\.,]?\d*)\s*(µg|mg|g|ml|%|UI|IU)\/?(ml|g)?/i', $name, $m)) {
+        if (preg_match('/(\d+[\.,]?\d*)\s*(µg|mg|kg|g|ml|%|UI|IU)\/?(?:ml|kg|g)?/i', $name, $m)) {
             return $m[0];
         }
         return null;

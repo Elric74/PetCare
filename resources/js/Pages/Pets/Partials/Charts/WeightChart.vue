@@ -14,6 +14,7 @@ const props = defineProps({
 });
 
 const chartData = ref(null);
+const hasBirthDate = ref(false);
 const chartOptions = ref({
   responsive: true,
   maintainAspectRatio: true,
@@ -41,7 +42,7 @@ const chartOptions = ref({
         title: function(context) {
           if (context[0]) {
             const days = Math.round(context[0].parsed.x);
-            if (days === 0) {
+            if (hasBirthDate.value && days === 0) {
               return 'Naissance (Jour 0)';
             }
             return `Jour ${days}`;
@@ -57,7 +58,7 @@ const chartOptions = ref({
       position: 'bottom',
       title: {
         display: true,
-        text: 'Jours depuis la naissance',
+        text: 'Jours',
         font: {
           size: 12
         }
@@ -87,14 +88,11 @@ const buildChartData = () => {
   }
 
   const birthDate = props.pet.birth_date ? moment(props.pet.birth_date) : null;
-  if (!birthDate) {
-    chartData.value = null;
-    return;
-  }
+  hasBirthDate.value = !!birthDate;
 
   // Filter histories that have weight_g and diagnosis_date
   const weightRecords = props.pet.medical_history
-    .filter(h => h.weight_g && h.diagnosis_date)
+    .filter((h) => h.weight_g !== null && h.weight_g !== '' && h.diagnosis_date)
     .sort((a, b) => new Date(a.diagnosis_date) - new Date(b.diagnosis_date));
 
   // Prepare data points with x (days) and y (weight)
@@ -102,9 +100,11 @@ const buildChartData = () => {
 
   // Add birth date point (day 0) if we have birth weight info
   // Otherwise start from first medical record
+  const referenceDate = birthDate || (weightRecords.length > 0 ? moment(weightRecords[0].diagnosis_date) : null);
+
   weightRecords.forEach(record => {
     const recordDate = moment(record.diagnosis_date);
-    const daysSinceBirth = recordDate.diff(birthDate, 'days');
+    const daysSinceBirth = referenceDate ? recordDate.diff(referenceDate, 'days') : 0;
 
     dataPoints.push({
       x: daysSinceBirth,
@@ -134,6 +134,10 @@ const buildChartData = () => {
       }
     ]
   };
+
+  chartOptions.value.scales.x.title.text = hasBirthDate.value
+    ? 'Jours depuis la naissance'
+    : 'Jours depuis le premier relevé';
 };
 
 onMounted(() => {

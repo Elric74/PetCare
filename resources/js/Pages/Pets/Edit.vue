@@ -1,17 +1,11 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue'
 import { ref, watch, nextTick, defineProps, onMounted, onUnmounted, reactive } from 'vue'
-import { usePage } from "@inertiajs/vue3"
+import { Link, usePage } from "@inertiajs/vue3"
 import VueMultiselect from 'vue-multiselect'
 import 'vue-multiselect/dist/vue-multiselect.css'
 import { useToast } from "vue-toastification"
 import { useI18n } from 'vue-i18n';
-import { TabGroup, TabList, Tab, TabPanels, TabPanel } from '@headlessui/vue'
-import VaccinationsForm from '@/Pages/Pets/Partials/VaccinationsForm.vue'
-import MedicationsForm from '@/Pages/Pets/Partials/MedicationsForm.vue'
-import MedicalHistoriesForm from '@/Pages/Pets/Partials/MedicalHistoriesForm.vue'
-import SurgicalHistoriesForm from '@/Pages/Pets/Partials/SurgicalHistoriesForm.vue'
-import Gallery from '@/Pages/Pets/Partials/Gallery.vue'
 import { validateForm, errors, watchFields } from '@/Validation/Pets/Index'
 const isSubmitting = ref(false)
 const selectedUser = ref(null)
@@ -24,13 +18,6 @@ const loadingBreeds = ref(false)
 const selectedFile = ref(null)
 const toast = useToast()
 const { t } = useI18n();
-const tabs = ref([
-	t('pets_tabs.vaccinations'),
-	t('pets_tabs.medical_history'),
-	t('pets_tabs.medications'),
-	t('pets_tabs.surgical_history'),
-	t('pets_tabs.gallery'),
-])
 const newImage = ref(null)
 const videoRef = ref(null)
 const canvasRef = ref(null)
@@ -50,8 +37,33 @@ const props = defineProps({
 	pet: {
 		type: Object,
 		required: true
-	}
+	},
+	speciesOptions: {
+		type: Array,
+		default: () => []
+	},
+	breedOptions: {
+		type: Array,
+		default: () => []
+	},
 })
+
+const normalizeGender = (gender) => {
+	if (gender === null || gender === undefined) {
+		return gender
+	}
+
+	const g = String(gender).trim()
+	// Some pets are stored with lowercase "à déterminer" in DB.
+	if (g === 'à déterminer' || g === 'À déterminer') {
+		return 'À déterminer'
+	}
+
+	return g
+}
+
+matchingSpecies.value = Array.isArray(props.speciesOptions) ? props.speciesOptions : []
+matchingBreeds.value = Array.isArray(props.breedOptions) ? props.breedOptions : []
 
 // Initialize the form with the pet data
 const editForm = reactive({
@@ -60,7 +72,7 @@ const editForm = reactive({
 	species_id: props.pet.species_id,
 	breed_id: props.pet.breed_id,
 	birth_date: props.pet.birth_date,
-	gender: props.pet.gender,
+	gender: normalizeGender(props.pet.gender),
 	is_sterilized: !!props.pet.is_sterilized,
 	sterilized_at: props.pet.sterilized_at ? props.pet.sterilized_at.slice(0,10) : null,
 	photo: {
@@ -88,10 +100,35 @@ selectedBreed.value = props.pet.breed
 // Set the initial value for the file input
 
 
-const handleFileChange = (event) => {
+const handleFileChange = async (event) => {
 	selectedFile.value = event.target.files[0];
 
 	if (selectedFile.value) {
+		const fileName = selectedFile.value.name.toLowerCase();
+		
+		// Convert HEIC to JPEG before upload
+		if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
+			try {
+				const heic2any = (await import('heic2any')).default;
+				toast.info('Conversion HEIC en cours...');
+				const convertedBlob = await heic2any({ 
+					blob: selectedFile.value, 
+					toType: 'image/jpeg', 
+					quality: 0.9 
+				});
+				const blobToUse = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+				selectedFile.value = new File(
+					[blobToUse], 
+					fileName.replace(/\.(heic|heif)$/i, '.jpg'), 
+					{ type: 'image/jpeg' }
+				);
+				toast.success('✓ Image convertie en JPEG');
+			} catch (error) {
+				console.error('HEIC conversion error:', error);
+				toast.error('Échec de la conversion HEIC');
+			}
+		}
+
 		editForm.photo = {
 			file: selectedFile.value,
 			url: URL.createObjectURL(selectedFile.value)
@@ -99,12 +136,39 @@ const handleFileChange = (event) => {
 	}
 }
 
-const handleFileDrop = (event) => {
+const handleFileDrop = async (event) => {
 	selectedFile.value = event.dataTransfer.files[0];
 
-	// Update the createForm's photo property with the URL for display purposes
 	if (selectedFile.value) {
-		newImage.value = URL.createObjectURL(selectedFile.value);
+		const fileName = selectedFile.value.name.toLowerCase();
+		
+		// Convert HEIC to JPEG if needed
+		if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
+			try {
+				const heic2any = (await import('heic2any')).default;
+				toast.info('Conversion HEIC en cours...');
+				const convertedBlob = await heic2any({ 
+					blob: selectedFile.value, 
+					toType: 'image/jpeg', 
+					quality: 0.9 
+				});
+				const blobToUse = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+				selectedFile.value = new File(
+					[blobToUse], 
+					fileName.replace(/\.(heic|heif)$/i, '.jpg'), 
+					{ type: 'image/jpeg' }
+				);
+				toast.success('✓ Image convertie en JPEG');
+			} catch (error) {
+				console.error('HEIC conversion error:', error);
+				toast.error('Échec de la conversion HEIC');
+			}
+		}
+
+		editForm.photo = {
+			file: selectedFile.value,
+			url: URL.createObjectURL(selectedFile.value)
+		};
 	}
 }
 
@@ -200,6 +264,8 @@ const setUserId = () => {
 const setSpeciesId = () => {
 	if (selectedSpecies.value) {
 		editForm.species_id = selectedSpecies.value.id;
+		editForm.breed_id = ''
+		selectedBreed.value = null
 	}
 }
 
@@ -411,8 +477,15 @@ onUnmounted(() => {
 	window.removeEventListener('keydown', handleWebcamButton)
 })
 
-onMounted(() => {
+onMounted(async () => {
 	window.addEventListener('keydown', handleWebcamButton)
+
+	await fetchAllClients()
+	await fetchAllSpecies()
+
+	if (selectedSpecies.value?.id) {
+		await fetchBreeds(selectedSpecies.value.id)
+	}
 })
 
 </script>
@@ -492,9 +565,10 @@ onMounted(() => {
 						<select v-model="editForm.gender" id="gender"
 							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50">
 							<option disabled value="">{{ t('common.select_gender') }}</option>
+							<option value="Femelle Stérilisée">Femelle Stérilisée</option>
 							<option value="Femelle">Femelle</option>
 							<option value="Male">Male</option>
-							<option value="À déterminer">À déterminer</option>
+							<option value="Male castré">Male castré</option>
 						</select>
 					</div>
 					<div class="col-span-12 md:col-span-3">
@@ -623,41 +697,14 @@ onMounted(() => {
 			</form>
 		</div>
 
-		<div class="max-w-full px-2 py-10 sm:px-0">
-			<TabGroup>
-				<TabList class="flex flex-col sm:flex-row space-x-1 rounded-xl bg-blue-900/20 p-1">
-					<Tab as="template" v-slot="{ selected }" v-for="tab in tabs" :key="tab">
-						<button :class="[
-							'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
-              'ring-white/60 ring-offset-2 focus:outline-none focus:ring-2',
-              selected
-                ? 'bg-white text-indigo-700 shadow'
-                : 'text-blue-100 hover:bg-white/[0.12] hover:text-white',
-						]">
-							{{ tab }}
-						</button>
-					</Tab>
-				</TabList>
-				<TabPanels>
-					<TabPanel class="mt-2">
-						<VaccinationsForm :pet="pet" />
-					</TabPanel>
-					<TabPanel class="mt-2">
-						<MedicalHistoriesForm :pet="pet" />
-					</TabPanel>
-					<TabPanel class="mt-2">
-						<MedicationsForm :pet="pet" />
-					</TabPanel>
-					<TabPanel class="mt-2">
-						<SurgicalHistoriesForm :pet="pet" />
-					</TabPanel>
-					<TabPanel class="mt-2">
-						<Gallery :pet="pet" />
-					</TabPanel>
-				</TabPanels>
-			</TabGroup>
+		<div class="mt-6">
+			<Link
+				:href="route('pets.show', { slug: pet.slug })"
+				class="inline-flex items-center rounded-md border border-indigo-700 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+			>
+				Retour à la fiche
+			</Link>
 		</div>
-
 
 	</AppLayout>
 </template>

@@ -20,8 +20,16 @@ class InventoryMedoc extends Model
         'raw',
         'scanned_at',
         'user_id',
+        'annee_inventaire',
         'commercial_name',
         'dosage',
+        'count',
+        'prix_2025',
+        'prix_2026',
+        'prix_2027',
+        'prix_2028',
+        'prix_2029',
+        'prix_2030',
     ];
 
     protected $casts = [

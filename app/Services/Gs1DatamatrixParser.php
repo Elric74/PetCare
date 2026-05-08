@@ -66,7 +66,8 @@ class Gs1DatamatrixParser
                     $value = substr($clean, $pos, 14);
                     $pos += 14;
                     break;
-                case '17': // Expiry date - 6 digits fixed
+                case '15': // Best Before Date - 6 digits fixed (YYMMDD)
+                case '17': // Expiry date - 6 digits fixed (YYMMDD)
                     $value = substr($clean, $pos, 6);
                     $pos += 6;
                     break;
@@ -111,7 +112,8 @@ class Gs1DatamatrixParser
             case '21':
                 $result['serial_number'] = $value;
                 break;
-            case '17':
+            case '15': // Best Before Date (YYMMDD)
+            case '17': // Expiry Date (YYMMDD)
                 // YYMMDD
                 if (preg_match('/^(\d{6})$/', $value)) {
                     $yy = intval(substr($value, 0, 2));

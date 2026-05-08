@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\LabReportController;
+use App\Http\Controllers\Api\LabReportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -21,3 +21,9 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 // Lab Reports ingestion endpoint (no CSRF, no auth; restrict later if needed)
 Route::post('/lab-reports', [LabReportController::class, 'store']);
+Route::get('/lab-reports/sync-status', [LabReportController::class, 'syncStatus']);
+
+// Test route to verify cache is cleared
+Route::get('/test-cache', function () {
+    return response()->json(['message' => 'Cache is cleared!', 'timestamp' => now()]);
+});

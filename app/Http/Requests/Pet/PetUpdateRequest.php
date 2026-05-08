@@ -8,6 +8,17 @@ use Illuminate\Validation\Rule;
 
 class PetUpdateRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('gender') && is_string($this->input('gender'))) {
+            $gender = trim($this->input('gender'));
+            // Normalize DB variations
+            if ($gender === 'à déterminer' || $gender === 'À déterminer') {
+                $this->merge(['gender' => 'À déterminer']);
+            }
+        }
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -29,7 +40,15 @@ class PetUpdateRequest extends FormRequest
             'breed_id' => ['sometimes', 'integer'],
             //'age' removed in favor of birth_date
             'birth_date' => ['sometimes', 'date', 'before_or_equal:today'],
-            'gender' => ['sometimes', 'string', 'max:255', \Illuminate\Validation\Rule::in(['Femelle','Male','À déterminer'])],
+            'gender' => ['sometimes', 'string', 'max:255', \Illuminate\Validation\Rule::in([
+                'Femelle Stérilisée',
+                'Femelle',
+                'Male',
+                'Male castré',
+                // Legacy values kept for backward compatibility
+                'À déterminer',
+                'à déterminer',
+            ])],
             'is_sterilized' => ['sometimes', 'boolean'],
             'sterilized_at' => ['sometimes', 'date', 'before_or_equal:today'],
             'chip_number' => [

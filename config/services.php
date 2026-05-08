@@ -30,8 +30,10 @@ return [
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
-        'afmps' => [
-            'base_url' => env('AFMPS_BASE_URL', 'https://api.afmps.example'),
-        ],
+
+    'api_medicaments' => [
+        'key' => env('API_MEDICAMENTS_KEY'),
+        'base_url' => env('API_MEDICAMENTS_URL', 'https://api-medicaments.fr/api/v1'),
+    ],
 
 ];

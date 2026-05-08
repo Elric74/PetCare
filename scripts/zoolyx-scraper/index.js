@@ -1,9 +1,12 @@
-import { chromium } from 'playwright'
+import axios from 'axios'
+import * as cheerio from 'cheerio'
 import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
-import axios from 'axios'
+import https from 'https'
 import FormData from 'form-data'
+import { CookieJar } from 'tough-cookie'
+import { wrapper } from 'axios-cookiejar-support'
 
 dotenv.config()
 
@@ -13,6 +16,7 @@ const ZOOLYX_URL = process.env.ZOOLYX_URL || 'https://www2.zoolyx.be/myzoolyx/ve
 const PETCARE_API_URL = process.env.PETCARE_API_URL || 'http://localhost:8000'
 const PETCARE_API_TOKEN = process.env.PETCARE_API_TOKEN || ''
 const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || 'downloads'
+const INSECURE_HTTPS = (process.env.PETCARE_INSECURE_HTTPS || '1') === '1'
 
 const ensureDir = (p) => {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true })
@@ -20,252 +24,488 @@ const ensureDir = (p) => {
 
 const client = axios.create({
   baseURL: PETCARE_API_URL,
-  headers: PETCARE_API_TOKEN ? { Authorization: `Bearer ${PETCARE_API_TOKEN}` } : {}
+  headers: PETCARE_API_TOKEN ? { Authorization: `Bearer ${PETCARE_API_TOKEN}` } : {},
+  maxRedirects: 5,
+  timeout: 30000,
+  httpsAgent: INSECURE_HTTPS ? new https.Agent({ rejectUnauthorized: false }) : undefined
 })
 
-async function postReportToPetCare(payload, filePath) {
-  const form = new FormData()
-  form.append('owner_first_name', payload.owner_first_name || '')
-  form.append('owner_last_name', payload.owner_last_name || '')
-  form.append('pet_name', payload.pet_name || '')
-  form.append('pet_gender', payload.pet_gender || '')
-  form.append('reception_date', payload.reception_date || '')
-  form.append('updated_date', payload.updated_date || '')
-  form.append('source', 'zoolyx')
+function getPetCarePostUrls() {
+  const base = String(PETCARE_API_URL || '').replace(/\/+$/, '')
+  const urls = []
 
-  if (filePath && fs.existsSync(filePath)) {
-    let filename = path.basename(filePath)
-    if (!filename.toLowerCase().endsWith('.pdf')) {
-      filename = filename + '.pdf'
-    }
-    form.append('pdf', fs.createReadStream(filePath), {
-      filename,
-      contentType: 'application/pdf'
-    })
+  if (base.endsWith('/api')) {
+    urls.push(`${base}/lab-reports`)
+  } else {
+    urls.push(`${base}/api/lab-reports`)
   }
 
-  const url = '/api/lab-reports'
-  const headers = form.getHeaders()
+  // Synology setups sometimes expose API only via HTTPS.
+  if (base.startsWith('http://')) {
+    urls.push(`${base.replace(/^http:\/\//, 'https://')}/api/lab-reports`)
+  }
 
-  const res = await client.post(url, form, { headers })
-  console.log('Posted to PetCare:', res.data)
+  return [...new Set(urls)]
+}
+
+function getPetCareStatusUrls() {
+  const base = String(PETCARE_API_URL || '').replace(/\/+$/, '')
+  const urls = []
+
+  if (base.endsWith('/api')) {
+    urls.push(`${base}/lab-reports/sync-status`)
+  } else {
+    urls.push(`${base}/api/lab-reports/sync-status`)
+  }
+
+  if (base.startsWith('http://')) {
+    urls.push(`${base.replace(/^http:\/\//, 'https://')}/api/lab-reports/sync-status`)
+  }
+
+  return [...new Set(urls)]
+}
+
+async function fetchExistingStatuses(reportIds) {
+  const ids = [...new Set((reportIds || []).filter(Boolean))]
+  if (ids.length === 0) {
+    return {}
+  }
+
+  const candidateUrls = getPetCareStatusUrls()
+  let lastError = null
+
+  for (const url of candidateUrls) {
+    try {
+      const res = await client.get(url, {
+        params: { ids },
+        paramsSerializer: { indexes: false }
+      })
+      return res?.data?.data || {}
+    } catch (error) {
+      lastError = error
+      const status = error?.response?.status
+      console.log(`⚠️ Status check échoué vers ${url}${status ? ` (HTTP ${status})` : ''}`)
+    }
+  }
+
+  if (lastError) {
+    console.log('⚠️ Impossible de récupérer le status sync, poursuite sans skip incrémental')
+  }
+  return {}
+}
+
+// Parse date from format like "01/12/2025" to "2025-12-01"
+function parseZoolyxDate(dateStr) {
+  if (!dateStr) return ''
+  const normalized = String(dateStr).trim().replace(/\s+/g, ' ')
+  const match = normalized.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+  if (match) {
+    const [_, day, month, year] = match
+    return `${year}-${month}-${day}`
+  }
+
+  // Handle "20 Nov 2025" style strings (EN/FR/NL month names)
+  const monthMap = {
+    jan: '01', janvier: '01', januari: '01',
+    feb: '02', fev: '02', fév: '02', fevrier: '02', février: '02', februari: '02',
+    mar: '03', mars: '03', mrt: '03', maart: '03',
+    apr: '04', avril: '04', april: '04',
+    may: '05', mai: '05', mei: '05',
+    jun: '06', juin: '06', juni: '06',
+    jul: '07', juillet: '07', juli: '07',
+    aug: '08', aout: '08', août: '08', augustus: '08',
+    sep: '09', sept: '09', september: '09',
+    oct: '10', octobre: '10', oktober: '10',
+    nov: '11', novembre: '11',
+    dec: '12', decembre: '12', décembre: '12', december: '12'
+  }
+
+  const words = normalized.match(/(\d{1,2})\s+([A-Za-zÀ-ÿ\.]+)\s+(\d{4})/)
+  if (words) {
+    const day = words[1].padStart(2, '0')
+    const monthKey = words[2].replace('.', '').toLowerCase()
+    const month = monthMap[monthKey]
+    const year = words[3]
+    if (month) {
+      return `${year}-${month}-${day}`
+    }
+  }
+
+  return normalized
+}
+
+// Extract report ID from URL
+function extractReportId(url) {
+  const match = String(url || '').match(/\/report\/view\/([A-Za-z0-9]+)/)
+  return match ? match[1] : null
+}
+
+function toAbsoluteUrl(url) {
+  if (!url) return null
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  if (url.startsWith('/')) return `https://www2.zoolyx.be${url}`
+  return `https://www2.zoolyx.be/${url}`
+}
+
+function isPdfResponse(response) {
+  const contentType = String(response?.headers?.['content-type'] || '').toLowerCase()
+  if (contentType.includes('application/pdf')) {
+    return true
+  }
+
+  const data = response?.data
+  if (!data) return false
+  const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data)
+  const prefix = buffer.subarray(0, 4).toString()
+  return prefix === '%PDF'
+}
+
+async function loginToZoolyx() {
+  try {
+    console.log('🔐 Tentative de connexion à Zoolyx...')
+
+    // Créer une session axios avec cookies
+    const jar = new CookieJar()
+    const session = wrapper(axios.create({
+      jar,
+      maxRedirects: 5,
+      timeout: 30000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'fr,en-US;q=0.7,en;q=0.3',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+      }
+    }))
+
+    // Étape 1 : Charger la page de login pour récupérer le token CSRF
+    console.log('📄 Chargement de la page de login...')
+    const loginPageResponse = await session.get('https://www2.zoolyx.be/myzoolyx/login')
+    const $login = cheerio.load(loginPageResponse.data)
+
+    // Extraire le token CSRF (comme dans le PHP)
+    const csrfToken = $login('input[name="_csrf_token"]').val()
+
+    if (!csrfToken) {
+      throw new Error('❌ Impossible de récupérer le token CSRF')
+    }
+
+    console.log('🔑 Token CSRF trouvé:', csrfToken.substring(0, 10) + '...')
+
+    // Étape 2 : Soumettre le formulaire de connexion (comme dans le PHP)
+    console.log('📤 Envoi des identifiants...')
+    console.log('👤 Utilisateur:', ZOOLYX_EMAIL)
+    console.log('🔑 Mot de passe (masqué):', ZOOLYX_PASSWORD.replace(/./g, '*'))
+
+    const loginData = new URLSearchParams({
+      '_username': ZOOLYX_EMAIL,
+      '_password': ZOOLYX_PASSWORD,
+      '_csrf_token': csrfToken,
+      '_remember_me': 'on'
+    })
+
+    console.log('📋 Données de login:', loginData.toString().replace(ZOOLYX_PASSWORD, '***'))
+
+    const loginResponse = await session.post('https://www2.zoolyx.be/myzoolyx/login_check', loginData.toString(), {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Referer': 'https://www2.zoolyx.be/myzoolyx/login',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Cache-Control': 'max-age=0',
+        'Origin': 'https://www2.zoolyx.be'
+      },
+      maxRedirects: 5 // Laisser axios suivre les redirections comme cURL
+    })
+
+    console.log('🔍 Statut de la réponse de login:', loginResponse.status)
+    console.log('🔍 URL finale après login:', loginResponse.request?.res?.responseUrl || 'N/A')
+
+    // Comme dans le PHP : après le login, aller directement sur la page des rapports
+    console.log('📄 Accès à la page des rapports...')
+    const reportCheck = await session.get(ZOOLYX_URL)
+
+    console.log('🔍 Statut de la page rapports:', reportCheck.status)
+    console.log('🔍 URL finale rapports:', reportCheck.request?.res?.responseUrl || 'N/A')
+
+    // Vérifier si on est sur une page de login (contient des éléments de formulaire)
+    const $report = cheerio.load(reportCheck.data)
+    const hasLoginForm = $report('form[action*="login"]').length > 0
+    const hasLoginInput = $report('input[name="_username"], input[name="email"]').length > 0
+    const hasCsrfToken = $report('input[name="_csrf_token"]').length > 0
+
+    if (hasLoginForm || hasLoginInput || hasCsrfToken) {
+      console.log('🚫 Toujours sur la page de login - authentification échouée')
+      console.log('🔍 Titre de la page:', $report('title').text())
+      console.log('🔍 Contient des erreurs:', $report('.error, .alert-danger, .invalid-feedback').text())
+      throw new Error('❌ Login failed - still on login page')
+    }
+
+    if (reportCheck.data.includes('myzoolyx_row') || reportCheck.data.includes('report') ||
+        reportCheck.data.includes('Rapport') || reportCheck.data.includes('report_completed') ||
+        reportCheck.data.includes('veterinary/report') || reportCheck.data.includes('table') ||
+        reportCheck.data.includes('tbody')) {
+      console.log('✅ Connexion réussie!')
+      return session
+    } else {
+      console.log('⚠️ Réponse reçue mais contenu inattendu')
+      console.log('🔍 Titre de la page:', $report('title').text())
+      console.log('🔍 Contient "login":', reportCheck.data.includes('login'))
+      console.log('🔍 Contient "error":', reportCheck.data.includes('error'))
+      console.log('🔍 Contient "redirect":', reportCheck.data.includes('redirect'))
+      console.log('🔍 Longueur du contenu:', reportCheck.data.length)
+      console.log('Contenu (aperçu):', reportCheck.data.substring(0, 1000))
+      throw new Error('❌ Login failed - contenu inattendu')
+    }
+
+  } catch (error) {
+    console.error('❌ Erreur lors du login:', error.message)
+    if (error.response) {
+      console.error('Status:', error.response.status)
+      console.error('Headers:', JSON.stringify(error.response.headers, null, 2))
+    }
+    throw error
+  }
+}
+
+async function scrapeReports(session) {
+  try {
+    console.log('📋 Récupération de la liste des rapports...')
+
+    const response = await session.get(ZOOLYX_URL)
+    const $ = cheerio.load(response.data)
+
+    const reports = []
+
+    // Parser le tableau des rapports (adapter les sélecteurs selon le HTML réel)
+    $('li.myzoolyx_row').each((index, row) => {
+      const $row = $(row)
+      const link = $row.find('a[href*="/myzoolyx/report/view/"]')
+
+      if (link.length > 0) {
+        const url = link.attr('href')
+        const reportId = extractReportId(url)
+
+        if (reportId) {
+          // Extraire les données de la ligne
+          const animalDiv = $row.find('.col-xs-6.col-sm-3.col-md-2')
+          const ownerDiv = $row.find('.col-xs-6.col-sm-3.col-md-3')
+          const datesDiv = $row.find('.col-sm-4.col-md-3')
+
+          let pet_name = animalDiv.find('.text-wrap').text().trim()
+          let pet_species = 'unknown'
+          const imgSrc = animalDiv.find('img').attr('src') || ''
+          if (imgSrc.includes('/dog.png')) pet_species = 'dog'
+          else if (imgSrc.includes('/cat.png')) pet_species = 'cat'
+
+          const owner_full = ownerDiv.text().trim()
+          let owner_first_name = ''
+          let owner_last_name = ''
+          if (owner_full) {
+            const parts = owner_full.split(/\s+/)
+            if (parts.length > 1) {
+              owner_first_name = parts.slice(0, -1).join(' ')
+              owner_last_name = parts.slice(-1)[0]
+            } else {
+              owner_last_name = owner_full
+            }
+          }
+
+          let reception_date = ''
+          let updated_date = ''
+          const dateCols = datesDiv.find('.col-sm-6')
+          if (dateCols.length >= 2) {
+            reception_date = $(dateCols[0]).text().trim()
+            updated_date = $(dateCols[1]).text().trim()
+          }
+
+          const report = {
+            id: reportId,
+            url: `https://www2.zoolyx.be${url}`,
+            pet_name,
+            pet_species,
+            owner_first_name,
+            owner_last_name,
+            reception_date,
+            updated_date
+          }
+
+          reports.push(report)
+        }
+      }
+    })
+
+    console.log(`📊 Trouvé ${reports.length} rapports`)
+    return reports
+
+  } catch (error) {
+    console.error('❌ Erreur lors du scraping:', error.message)
+    throw error
+  }
+}
+
+async function downloadReport(session, report) {
+  try {
+    console.log(`⬇️ Téléchargement du rapport ${report.id}...`)
+
+    const response = await session.get(report.url, {
+      responseType: 'text',
+      timeout: 60000
+    })
+
+    // Chercher un lien PDF explicite dans la page
+    const $ = cheerio.load(response.data)
+    const explicitPdfHref =
+      $('a[href$=".pdf"]').first().attr('href') ||
+      $('a[href*=".pdf?"]').first().attr('href') ||
+      $('a[href*="/pdf"]').first().attr('href') ||
+      $('a[href*="download"]').first().attr('href') ||
+      $('a[href*="print"]').first().attr('href')
+
+    const candidates = []
+    if (explicitPdfHref) {
+      candidates.push(toAbsoluteUrl(explicitPdfHref))
+    }
+
+    // Zoolyx "view" IDs are now alphanumeric; try common endpoints.
+    candidates.push(
+      `https://www2.zoolyx.be/myzoolyx/report/download/${report.id}`,
+      `https://www2.zoolyx.be/myzoolyx/report/pdf/${report.id}`,
+      `https://www2.zoolyx.be/myzoolyx/report/print/${report.id}`,
+      `https://www2.zoolyx.be/myzoolyx/report/view/${report.id}?output=pdf`,
+      `https://www2.zoolyx.be/myzoolyx/report/view/${report.id}?format=pdf`,
+      `https://www2.zoolyx.be/myzoolyx/report/view/${report.id}?print=1`
+    )
+
+    const uniqueCandidates = [...new Set(candidates.filter(Boolean))]
+
+    for (const pdfUrl of uniqueCandidates) {
+      try {
+        console.log(`🔎 Test URL PDF: ${pdfUrl}`)
+        const pdfResponse = await session.get(pdfUrl, {
+          responseType: 'arraybuffer',
+          timeout: 60000,
+          validateStatus: () => true
+        })
+
+        if (pdfResponse.status >= 200 && pdfResponse.status < 300 && isPdfResponse(pdfResponse)) {
+          const filename = `${report.pet_name.replace(/[^a-zA-Z0-9]/g, '_')}_${report.id}.pdf`
+          const filepath = path.join(DOWNLOAD_DIR, filename)
+          fs.writeFileSync(filepath, Buffer.from(pdfResponse.data))
+          console.log(`💾 Rapport sauvegardé: ${filepath}`)
+          return filepath
+        }
+      } catch (e) {
+        // Try next candidate
+      }
+    }
+
+    console.log('⚠️ PDF introuvable via toutes les stratégies')
+    return null
+
+  } catch (error) {
+    console.error(`❌ Erreur téléchargement rapport ${report.id}:`, error.message)
+    return null
+  }
+}
+
+async function postReportToPetCare(report, filePath) {
+  const candidateUrls = getPetCarePostUrls()
+  let lastError = null
+
+  for (const url of candidateUrls) {
+    try {
+      const form = new FormData()
+      form.append('zoolyx_report_id', report.id)
+      form.append('pet_name', report.pet_name)
+      form.append('pet_species', report.pet_species)
+      form.append('owner_first_name', report.owner_first_name)
+      form.append('owner_last_name', report.owner_last_name)
+      form.append('reception_date', parseZoolyxDate(report.reception_date))
+      form.append('updated_date', parseZoolyxDate(report.updated_date))
+
+      if (filePath && fs.existsSync(filePath)) {
+        form.append('pdf_file', fs.createReadStream(filePath), {
+          filename: path.basename(filePath),
+          contentType: 'application/pdf'
+        })
+      }
+
+      const headers = form.getHeaders()
+      const res = await client.post(url, form, { headers })
+      return res.data
+    } catch (error) {
+      lastError = error
+      const status = error?.response?.status
+      console.log(`⚠️ Envoi échoué vers ${url}${status ? ` (HTTP ${status})` : ''}`)
+    }
+  }
+
+  throw lastError || new Error('Impossible de joindre l\'API PetCare')
 }
 
 async function scrape() {
   if (!ZOOLYX_EMAIL || !ZOOLYX_PASSWORD) {
-    console.error('Missing ZOOLYX_EMAIL or ZOOLYX_PASSWORD in .env')
+    console.error('❌ ZOOLYX_EMAIL et ZOOLYX_PASSWORD requis dans .env')
     process.exit(1)
   }
 
   ensureDir(path.resolve(DOWNLOAD_DIR))
 
-  const browser = await chromium.launch({ headless: true })
-  const context = await browser.newContext({ acceptDownloads: true })
-  const page = await context.newPage()
+  try {
+    const session = await loginToZoolyx()
+    const reports = await scrapeReports(session)
+    const existingStatuses = await fetchExistingStatuses(reports.map((r) => r.id))
 
-  console.log('Navigating to', ZOOLYX_URL)
-  await page.goto(ZOOLYX_URL, { waitUntil: 'domcontentloaded' })
+    console.log(`🚀 Traitement de ${reports.length} rapports...`)
 
-  // Detect login form; skip if already authenticated
-  const loginFormPresent = await page.locator('input[type="password"]').first().isVisible().catch(() => false)
-  if (loginFormPresent) {
-    console.log('Login form detected, filling credentials...')
-    
-    // Wait for form to be ready
-    await page.waitForTimeout(1000)
-    
-    // Find and fill email - try by placeholder first
-    const emailInput = page.locator('input[type="email"], input[placeholder*="Email"], input[placeholder*="email"]').first()
-    await emailInput.waitFor({ state: 'visible', timeout: 5000 })
-    await emailInput.fill(ZOOLYX_EMAIL)
-    console.log('Email filled')
-
-    // Find and fill password
-    const pwdInput = page.locator('input[type="password"]').first()
-    await pwdInput.waitFor({ state: 'visible', timeout: 5000 })
-    await pwdInput.fill(ZOOLYX_PASSWORD)
-    console.log('Password filled')
-
-    // Check "Stay logged in" checkbox if present
-    const stayLoggedIn = page.locator('input[type="checkbox"]').first()
-    if (await stayLoggedIn.isVisible().catch(() => false)) {
-      await stayLoggedIn.check()
-      console.log('Stay logged in checked')
-    }
-
-    // Click submit button - look for "Aanmelden" (Dutch for login)
-    const submitBtn = page.locator('button:has-text("Aanmelden"), input[type="submit"]').first()
-    await submitBtn.waitFor({ state: 'visible', timeout: 5000 })
-    await submitBtn.click()
-    console.log('Login submitted, waiting for navigation...')
-    
-    // Wait for navigation to complete
-    await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {})
-    await page.waitForTimeout(2000)
-  } else {
-    console.log('Already authenticated or no login form found')
-  }
-
-  // Take screenshot to debug what page we're on
-  await page.screenshot({ path: 'debug_after_login.png' })
-  console.log('Screenshot saved: debug_after_login.png')
-
-  // Wait for navigation or content load
-  await page.waitForLoadState('domcontentloaded')
-  
-  // Try multiple selectors with longer timeout and fallback
-  let reportSectionFound = false
-  const possibleSelectors = [
-    'table',
-    '.report-list',
-    '.reports-table',
-    '[class*="report"]',
-    '[id*="report"]',
-    'main',
-    '#content',
-    '.content'
-  ]
-  
-  for (const selector of possibleSelectors) {
-    const found = await page.locator(selector).first().isVisible({ timeout: 5000 }).catch(() => false)
-    if (found) {
-      console.log(`Found element with selector: ${selector}`)
-      reportSectionFound = true
-      break
-    }
-  }
-
-  if (!reportSectionFound) {
-    console.error('No report section found. Current URL:', page.url())
-    const bodyText = await page.locator('body').textContent()
-    console.log('Page content preview:', bodyText.substring(0, 500))
-  }
-
-  // Wait for content to be fully loaded
-  await page.waitForTimeout(3000)
-  console.log('Page loaded, extracting reports...')
-  
-  // Find all report rows - each is an <li class="myzoolyx_row"> with a link
-  const reportRows = await page.$$('li.myzoolyx_row a[href*="/myzoolyx/report/view/"]')
-  console.log(`Found ${reportRows.length} reports to process\n`)
-
-  if (reportRows.length === 0) {
-    console.log('No reports found')
-    await browser.close()
-    return
-  }
-
-  for (let i = 0; i < reportRows.length; i++) {
-    console.log(`\n--- Processing report ${i + 1}/${reportRows.length} ---`)
-    
-    // Navigate to list page if not there (in case of back navigation)
-    if (!page.url().includes('/veterinary/report/index')) {
-      await page.goto(ZOOLYX_URL)
-      await page.waitForTimeout(2000)
-    }
-    
-    // Re-fetch rows after navigation
-    const currentRows = await page.$$('li.myzoolyx_row a[href*="/myzoolyx/report/view/"]')
-    const reportLink = currentRows[i]
-    
-    // Extract data from the row before clicking
-    const rowContainer = await reportLink.evaluateHandle(el => el.closest('li.myzoolyx_row'))
-    const rowText = await page.evaluate(el => el.textContent, rowContainer)
-    
-    // Extract structured data from the row
-    const animalDiv = await rowContainer.$('.col-xs-6.col-sm-3.col-md-2')
-    const ownerDiv = await rowContainer.$('.col-xs-6.col-sm-3.col-md-3')
-    const datesDiv = await rowContainer.$('.col-sm-4.col-md-3')
-    
-    let pet_name = ''
-    let pet_species = ''
-    if (animalDiv) {
-      pet_name = (await animalDiv.$eval('.text-wrap', el => el.textContent)).trim()
-      const imgSrc = await animalDiv.$eval('img', el => el.src).catch(() => '')
-      if (imgSrc.includes('/dog.png')) pet_species = 'dog'
-      else if (imgSrc.includes('/cat.png')) pet_species = 'cat'
-    }
-    
-    const owner_full = ownerDiv ? (await ownerDiv.textContent()).trim() : ''
-    let owner_first_name = ''
-    let owner_last_name = ''
-    if (owner_full) {
-      const parts = owner_full.split(/\s+/)
-      if (parts.length > 1) {
-        owner_first_name = parts.slice(0, -1).join(' ')
-        owner_last_name = parts.slice(-1)[0]
-      } else {
-        owner_last_name = owner_full
-      }
-    }
-    
-    let reception_date = ''
-    let updated_date = ''
-    if (datesDiv) {
-      const dateCols = await datesDiv.$$('.col-sm-6')
-      if (dateCols.length >= 2) {
-        reception_date = (await dateCols[0].textContent()).trim()
-        updated_date = (await dateCols[1].textContent()).trim()
-      }
-    }
-    
-    console.log('Animal:', pet_name, `(${pet_species})`)
-    console.log('Propriétaire:', owner_full)
-    console.log('Réception:', reception_date)
-    console.log('Mise à jour:', updated_date)
-    
-    // Click to open detail page
-    await reportLink.click()
-    await page.waitForLoadState('networkidle').catch(() => {})
-    await page.waitForTimeout(2000)
-    
-    // Try to find and download PDF
-    let savedPath = ''
-    const pdfLink = await page.$('a[href$=".pdf"], a:has-text("PDF"), a:has-text("Télécharger"), a[href*="download"]').catch(() => null)
-    
-    if (pdfLink) {
+    for (const report of reports) {
       try {
-        const [download] = await Promise.all([
-          page.waitForEvent('download', { timeout: 10000 }),
-          pdfLink.click()
-        ])
-        const fileName = (await download.suggestedFilename()) || `report_${pet_name}_${Date.now()}.pdf`
-        savedPath = path.resolve(DOWNLOAD_DIR, fileName)
-        await download.saveAs(savedPath)
-        console.log('✅ Downloaded PDF:', fileName)
-      } catch (err) {
-        console.error('❌ Error downloading PDF:', err.message)
+        console.log(`\n📄 Traitement: ${report.pet_name} (${report.id})`)
+
+        const incomingUpdatedDate = parseZoolyxDate(report.updated_date)
+        const existingUpdatedDate = existingStatuses?.[report.id]?.updated_date || null
+        if (existingUpdatedDate && incomingUpdatedDate && existingUpdatedDate === incomingUpdatedDate) {
+          console.log(`⏭️ Inchangé (${incomingUpdatedDate}) - téléchargement ignoré`)
+          continue
+        }
+
+        const filePath = await downloadReport(session, report)
+
+        if (!filePath) {
+          console.log('⚠️ PDF non trouvé, rapport ignoré')
+          continue
+        }
+
+        const result = await postReportToPetCare(report, filePath)
+        if (result.status === 'duplicate') {
+          console.log('⚠️ Ignoré (doublon):', result.message)
+        } else {
+          console.log('✅ Envoyé à PetCare:', result.message)
+        }
+
+      } catch (error) {
+        console.error(`❌ Erreur traitement rapport ${report.id}:`, error.message)
       }
-    } else {
-      console.log('⚠️  No PDF link found')
     }
-    
-    const payload = {
-      pet_gender: pet_species,
-      pet_name,
-      owner_first_name,
-      owner_last_name,
-      owner_name: owner_full,
-      reception_date,
-      updated_date
-    }
-    
-    // Post to PetCare
-    try {
-      await postReportToPetCare(payload, savedPath)
-      console.log('✅ Posted to PetCare')
-    } catch (err) {
-      console.error('❌ Error posting:', err.response?.data || err.message)
-    }
-    
-    // Go back to list
-    await page.goBack()
-    await page.waitForTimeout(1500)
+
+    console.log('\n🎉 Scraping terminé!')
+
+  } catch (error) {
+    console.error('💥 Erreur générale:', error.message)
+    process.exit(1)
   }
-
-  console.log(`\n🎉 Finished processing ${reportRows.length} reports`)
-
-  await browser.close()
 }
 
-scrape().catch(err => { console.error(err); process.exit(1) })
+scrape()

@@ -7,6 +7,16 @@ use Illuminate\Support\Facades\Auth;
 
 class PetStoreRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('gender') && is_string($this->input('gender'))) {
+            $gender = trim($this->input('gender'));
+            if ($gender === 'à déterminer' || $gender === 'À déterminer') {
+                $this->merge(['gender' => 'À déterminer']);
+            }
+        }
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -28,7 +38,15 @@ class PetStoreRequest extends FormRequest
             'breed_id' => ['nullable', 'integer'],
             //'age' removed in favor of birth_date
             'birth_date' => ['nullable', 'date', 'before_or_equal:today'],
-            'gender' => ['nullable', 'string', 'max:255', \Illuminate\Validation\Rule::in(['Femelle','Male','À déterminer'])],
+            'gender' => ['nullable', 'string', 'max:255', \Illuminate\Validation\Rule::in([
+                'Femelle Stérilisée',
+                'Femelle',
+                'Male',
+                'Male castré',
+                // Legacy values kept for backward compatibility
+                'À déterminer',
+                'à déterminer',
+            ])],
             'is_sterilized' => ['nullable', 'boolean'],
             'sterilized_at' => ['nullable', 'date', 'before_or_equal:today'],
             'chip_number' => ['nullable', 'string', 'max:255', 'unique:pets,chip_number'],

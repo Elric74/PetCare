@@ -35,6 +35,8 @@ class InventoryMedocStoreRequest extends FormRequest
             'expiry_date' => ['nullable', 'date'],
             'lot_number' => ['nullable', 'string', 'max:255'],
             'raw' => ['nullable', 'string', 'max:1000'],
+            'medicament_id' => ['nullable', 'integer', 'exists:medicaments,id'],
+            'barcode_type' => ['nullable', 'string', 'max:50'],
         ];
     }
 }

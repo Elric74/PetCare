@@ -1,92 +1,52 @@
 <script setup>
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import AuthenticationCard from '@/Components/AuthenticationCard.vue';
 import AuthenticationCardLogo from '@/Components/AuthenticationCardLogo.vue';
-import Checkbox from '@/Components/Checkbox.vue';
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
-import { useI18n } from 'vue-i18n';
+import { UserIcon } from '@heroicons/vue/24/outline';
 
 defineProps({
     canResetPassword: Boolean,
     status: String,
 });
 
-const form = useForm({
-    email: '',
-    password: '',
-    remember: false,
-});
+const users = [
+    { name: 'Nathalie', email: 'nathalie@petcare.local', color: 'bg-blue-500 hover:bg-blue-600' },
+    { name: 'Léna', email: 'lena@petcare.local', color: 'bg-pink-500 hover:bg-pink-600' },
+    { name: 'Admin', email: 'admin@petcare.local', color: 'bg-gray-700 hover:bg-gray-800' }
+];
 
-const submit = () => {
-    form.transform(data => ({
-        ...data,
-        remember: form.remember ? 'on' : '',
-    })).post(route('login'), {
-        onFinish: () => form.reset('password'),
-    });
+const quickLogin = (email) => {
+    router.post(route('quick-login'), { email });
 };
-const { t } = useI18n();
 </script>
 
 <template>
-    <Head :title="t('auth.login')" />
+    <Head title="Connexion" />
 
     <AuthenticationCard>
         <template #logo>
             <AuthenticationCardLogo />
         </template>
 
-        <div v-if="status" class="mb-4 font-medium text-sm text-green-600">
-            {{ status }}
+        <div class="text-center mb-8">
+            <h2 class="text-2xl font-bold text-gray-900">Bienvenue</h2>
+            <p class="text-gray-600 mt-2">Sélectionnez votre profil</p>
         </div>
 
-        <form @submit.prevent="submit">
-            <div>
-                <InputLabel for="email" :value="t('auth.email')" />
-                <TextInput
-                    id="email"
-                    v-model="form.email"
-                    type="email"
-                    class="mt-1 block w-full"
-                    required
-                    autofocus
-                    autocomplete="username"
-                />
-                <InputError class="mt-2" :message="form.errors.email" />
-            </div>
-
-            <div class="mt-4">
-                <InputLabel for="password" :value="t('auth.password')" />
-                <TextInput
-                    id="password"
-                    v-model="form.password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    required
-                    autocomplete="current-password"
-                />
-                <InputError class="mt-2" :message="form.errors.password" />
-            </div>
-
-            <div class="block mt-4">
-                <label class="flex items-center">
-                    <Checkbox v-model:checked="form.remember" name="remember" />
-                    <span class="ms-2 text-sm text-gray-600">{{ t('auth.remember_me') }}</span>
-                </label>
-            </div>
-
-            <div class="flex items-center justify-end mt-4">
-                <Link v-if="canResetPassword" :href="route('password.request')" class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    {{ t('auth.forgot_password') }}
-                </Link>
-
-                <PrimaryButton class="ms-4" :class="{ 'opacity-25': form.processing }" :disabled="form.processing">
-                    {{ t('auth.login') }}
-                </PrimaryButton>
-            </div>
-        </form>
+        <div class="grid grid-cols-1 gap-4">
+            <button
+                v-for="user in users"
+                :key="user.email"
+                @click="quickLogin(user.email)"
+                :class="[user.color, 'text-white rounded-lg p-6 transition-all transform hover:scale-105 shadow-lg']"
+            >
+                <div class="flex flex-col items-center space-y-3">
+                    <div class="bg-white bg-opacity-20 rounded-full p-4">
+                        <UserIcon class="w-12 h-12" />
+                    </div>
+                    <span class="text-xl font-semibold">{{ user.name }}</span>
+                </div>
+            </button>
+        </div>
     </AuthenticationCard>
 </template>

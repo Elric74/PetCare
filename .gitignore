@@ -22,3 +22,11 @@ Homestead.json
 /.vagrant
 .phpunit.result.cache
 database/seeders/UserSeeder.php
+bootstrap/cache/*.php
+!bootstrap/cache/.gitignore
+public/build/
+scripts/zoolyx-scraper/downloads/
+scripts/zoolyx-scraper/debug_after_login.png
+scripts/zoolyx-scraper/*.deb
+*.crt
+*.pfx

@@ -59,7 +59,8 @@ export const validateForm = (form) => {
 	}
 
 	// Validate gender
-	const allowedGenders = ['Femelle','Femelle Stérilisée','Male','Male castré',''];
+	// Some records are stored as "à déterminer" (lowercase) in DB.
+	const allowedGenders = ['Femelle','Femelle Stérilisée','Male','Male castré','À déterminer','à déterminer',''];
 	if (form.gender !== null && form.gender !== undefined && form.gender !== '') {
 		if (typeof form.gender !== 'string') {
 			errors.value.gender = 'This field must be a string';

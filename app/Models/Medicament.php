@@ -10,12 +10,15 @@ class Medicament extends Model
     use HasFactory;
 
     protected $fillable = [
+        'chargement',
         'barcode1',      // GTIN (DataMatrix)
         'barcode2',      // CNK (Belgian code)
         'barcode3',
         'barcode4',
         'barcode5',
         'barcode6',
+        'has_datamatrix', // Boolean: does this medication have a DataMatrix?
+        'unite',         // Number of sellable units in package
         'nom',
         'forme_pharmaceutique',
         'voie_administration',
@@ -52,6 +55,8 @@ class Medicament extends Model
     ];
 
     protected $casts = [
+        'has_datamatrix' => 'boolean',
+        'unite' => 'integer',
         'date_publication_rcp' => 'date',
         'date_publication_rma' => 'date',
         'date_publication_dhpc' => 'date',

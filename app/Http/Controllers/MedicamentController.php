@@ -39,23 +39,73 @@ class MedicamentController extends Controller
     public function edit(Medicament $medicament): Response
     {
         return Inertia::render('Medicaments/Edit', [
-            'medicament' => $medicament->only(['id','nom','barcode1','barcode2','barcode3','barcode4','barcode5','barcode6','substance_active','code_atc']),
+            'medicament' => $medicament,
         ]);
     }
 
     public function update(Request $request, Medicament $medicament): JsonResponse
     {
         $data = $request->validate([
+            'barcode1' => ['nullable','string','max:255'],
+            'barcode2' => ['nullable','string','max:255'],
+            'barcode3' => ['nullable','string','max:255'],
+            'barcode4' => ['nullable','string','max:255'],
+            'barcode5' => ['nullable','string','max:255'],
+            'barcode6' => ['nullable','string','max:255'],
+            'unite' => ['nullable','integer','min:1'],
             'nom' => ['nullable','string','max:255'],
-            'barcode1' => ['nullable','string','max:32'],
-            'barcode2' => ['nullable','string','max:32'],
-            'barcode3' => ['nullable','string','max:32'],
-            'barcode4' => ['nullable','string','max:32'],
-            'barcode5' => ['nullable','string','max:32'],
-            'barcode6' => ['nullable','string','max:32'],
+            'forme_pharmaceutique' => ['nullable','string','max:255'],
+            'voie_administration' => ['nullable','string','max:255'],
+            'firme' => ['nullable','string','max:255'],
+            'commercialise' => ['nullable','string','max:255'],
+            'probleme_disponibilite' => ['nullable','string','max:255'],
+            'especes_cibles' => ['nullable','string'],
+            'temps_attente' => ['nullable','string'],
+            'substance_active' => ['nullable','string'],
+            'code_atc' => ['nullable','string','max:255'],
+            'usage' => ['nullable','string','max:255'],
+            'url_notice_nl' => ['nullable','string'],
+            'url_notice_fr' => ['nullable','string'],
+            'url_notice_de' => ['nullable','string'],
+            'url_skp' => ['nullable','string'],
+            'url_rcp' => ['nullable','string'],
+            'url_zma_zmt' => ['nullable','string'],
+            'url_rma_nl' => ['nullable','string'],
+            'url_rma_fr' => ['nullable','string'],
+            'url_rma_de' => ['nullable','string'],
+            'url_dhcp_nl' => ['nullable','string'],
+            'url_dhcp_fr' => ['nullable','string'],
+            'url_dhpc_de' => ['nullable','string'],
+            'url_summary_rmp_nl' => ['nullable','string'],
+            'url_summary_rmp_fr' => ['nullable','string'],
+            'date_publication_rcp' => ['nullable','date'],
+            'date_publication_rma' => ['nullable','date'],
+            'date_publication_dhpc' => ['nullable','date'],
+            'date_publication_summary_rmp' => ['nullable','date'],
+            'date_approbation_rcp' => ['nullable','date'],
+            'date_approbation_rma' => ['nullable','date'],
+            'date_approbation_dhpc' => ['nullable','date'],
+            'date_approbation_summary_rmp' => ['nullable','date'],
         ]);
         $medicament->update($data);
         return response()->json(['message' => 'Médicament mis à jour']);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'barcode1' => ['nullable','string','max:255'],
+            'barcode2' => ['nullable','string','max:255'],
+            'barcode3' => ['nullable','string','max:255'],
+            'barcode4' => ['nullable','string','max:255'],
+            'barcode5' => ['nullable','string','max:255'],
+            'barcode6' => ['nullable','string','max:255'],
+            'nom' => ['nullable','string','max:255'],
+            'forme_pharmaceutique' => ['nullable','string','max:255'],
+        ]);
+        $data['chargement'] = 'manuel';
+        $medicament = Medicament::create($data);
+        return response()->json(['message' => 'Médicament créé', 'id' => $medicament->id], 201);
     }
 
     public function linkGtinCnk(Request $request): JsonResponse

@@ -1,6 +1,6 @@
 <script setup>
-import { onMounted } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { computed, onMounted } from 'vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import Banner from '@/Components/Banner.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
@@ -17,6 +17,11 @@ defineProps({
 });
 
 const { t } = useI18n();
+const page = usePage();
+
+const canSeeMedicationMenus = computed(() => {
+	return Boolean(page.props.permissions?.canSeeMedicationMenus);
+});
 
 const logout = () => {
 	router.post(route('logout'));
@@ -149,22 +154,67 @@ const logout = () => {
 								<span class="ml-3">Traitements Récurrents</span>
 							</NavLink>
 						</li>
-						<li>
-							<NavLink :href="route('breeds.photo-selector')" :active="route().current('breeds.photo-selector')"
+					<li v-if="canSeeMedicationMenus">
+						<NavLink :href="route('medicaments.index')" :active="route().current('medicaments.index')"
+							class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
+							<BeakerIcon
+								class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white" />
+							<span class="ml-3">Médicaments</span>
+						</NavLink>
+					</li>
+					<li v-if="canSeeMedicationMenus">
+						<NavLink :href="route('inventaire-medoc.index')" :active="route().current('inventaire-medoc.index')"
+							class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+								class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
+							</svg>
+							<span class="ml-3">Inventaire Médicaments</span>
+						</NavLink>
+					</li>
+					<li v-if="canSeeMedicationMenus">
+						<NavLink :href="route('inventory.scan')" :active="route().current('inventory.scan')"
+							class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+								class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
+								<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
+							</svg>
+							<span class="ml-3">Scan Inventaire</span>
+						</NavLink>
+					</li>
+					<li>
+						<NavLink :href="route('breeds.photo-selector')" :active="route().current('breeds.photo-selector')"
+							class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
+							<PhotoIcon
+								class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white" />
+							<span class="ml-3">Photos de Races</span>
+						</NavLink>
+					</li>
+					<li>
+							<NavLink :href="route('lab-reports.associate.index')" :active="route().current('lab-reports.associate.index')"
 								class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
-								<PhotoIcon
-									class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white" />
-								<span class="ml-3">Photos de Races</span>
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+									class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125V5.25m0 0a2.25 2.25 0 0 0-2.25-2.25H6.375A2.25 2.25 0 0 0 4.125 5.25v13.5A2.25 2.25 0 0 0 6.375 21h11.25a2.25 2.25 0 0 0 2.25-2.25V14.25M13.5 5.25v2.625a3.375 3.375 0 0 0 3.375 3.375H19.5m-8.25 5.25h1.5m-1.5 3h1.5m3-3h1.5m-1.5 3h1.5" />
+								</svg>
+								<span class="ml-3">Associer PS</span>
+								<span
+									v-if="$page.props.notifications?.unassociatedPsCount > 0"
+									class="ml-auto inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white"
+								>
+									{{ $page.props.notifications.unassociatedPsCount }}
+								</span>
 							</NavLink>
 						</li>
 						<li>
-							<NavLink :href="route('parameters.index')" :active="route().current('parameters.index')"
-								class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
-								<Cog6ToothIcon
-									class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white" />
-								<span class="ml-3">Paramètres SMS</span>
-							</NavLink>
-						</li>
+						<NavLink :href="route('parameters.index')" :active="route().current('parameters.index')"
+							class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
+							<Cog6ToothIcon
+								class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white" />
+							<span class="ml-3">Paramètres SMS</span>
+						</NavLink>
+					</li>
 					</ul>
 				</div>
 

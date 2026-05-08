@@ -104,11 +104,35 @@ onMounted(async () => {
 	errors.value = {}
 });
 
-const handleFileChange = (event) => {
+const handleFileChange = async (event) => {
 	selectedFile.value = event.target.files[0];
 
-	// Update the createForm’s photo property with the File object
 	if (selectedFile.value) {
+		const fileName = selectedFile.value.name.toLowerCase();
+		
+		// Convert HEIC to JPEG before upload
+		if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
+			try {
+				const heic2any = (await import('heic2any')).default;
+				toast.info('Conversion HEIC en cours...');
+				const convertedBlob = await heic2any({ 
+					blob: selectedFile.value, 
+					toType: 'image/jpeg', 
+					quality: 0.9 
+				});
+				const blobToUse = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+				selectedFile.value = new File(
+					[blobToUse], 
+					fileName.replace(/\.(heic|heif)$/i, '.jpg'), 
+					{ type: 'image/jpeg' }
+				);
+				toast.success('✓ Image convertie en JPEG');
+			} catch (error) {
+				console.error('HEIC conversion error:', error);
+				toast.error('Échec de la conversion HEIC');
+			}
+		}
+
 		createForm.photo = {
 			file: selectedFile.value,
 			url: URL.createObjectURL(selectedFile.value)
