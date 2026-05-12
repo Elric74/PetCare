@@ -181,7 +181,7 @@ class PetService
         $perPage = 10;
         $latestIds = $this->latestPetIds(5);
 
-        $petsQuery = Pet::query()->with('species', 'breed');
+        $petsQuery = Pet::query()->with('client', 'species', 'breed');
         $petsQuery = $this->applySpeciesFilter($petsQuery, $speciesFilter);
 
         $pets = $this->applyNewPetsOrdering($petsQuery, $latestIds)

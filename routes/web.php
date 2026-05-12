@@ -18,6 +18,7 @@ use App\Http\Controllers\EidReaderController;
 use App\Http\Controllers\RecurringTreatmentController;
 use App\Http\Controllers\LabReportController;
 use App\Http\Controllers\LabReportAssociationController;
+use App\Http\Controllers\MailboxMessageController;
 use App\Http\Controllers\BreedPhotoController;
 use App\Http\Controllers\InventoryMedocController;
 
@@ -96,11 +97,16 @@ Route::middleware([
     Route::post('/pets/{pet}/quick-gender', [PetController::class, 'quickUpdateGender'])->name('pets.quick-gender');
     Route::post('/pets/{pet}/quick-birth-date', [PetController::class, 'quickUpdateBirthDate'])->name('pets.quick-birth-date');
     Route::post('/pets/{pet}/send-sms', [PetController::class, 'sendSms'])->name('pets.sendSms');
+    Route::post('/pets/{pet}/send-whatsapp', [PetController::class, 'sendWhatsapp'])->name('pets.sendWhatsapp');
+    Route::post('/pets/{pet}/send-messenger', [PetController::class, 'sendMessenger'])->name('pets.sendMessenger');
     Route::post('/pets/{pet}/send-medication-sms', [PetController::class, 'sendMedicationSms'])->name('pets.sendMedicationSms');
+    Route::post('/pets/{pet}/send-medication-whatsapp', [PetController::class, 'sendMedicationWhatsapp'])->name('pets.sendMedicationWhatsapp');
+    Route::post('/pets/{pet}/send-medication-messenger', [PetController::class, 'sendMedicationMessenger'])->name('pets.sendMedicationMessenger');
     Route::delete('/pets/{id}', [PetController::class, 'destroy'])->name('pets.destroy');
 
     // Vaccinations
     Route::post('/pets/{pet}/vaccinations', [VaccinationController::class, 'storeVaccination'])->name('pets.vaccinations.store');
+    Route::patch('/pets/{pet}/vaccinations/{vaccination}/stop', [VaccinationController::class, 'stopVaccinationReminder'])->name('pets.vaccinations.stop');
     Route::delete('/pets/{pet}/vaccinations/{vaccination}', [VaccinationController::class, 'destroyVaccination'])->name('pets.vaccinations.delete');
     Route::get('/pets/{pet}/vaccinations', [VaccinationController::class, 'fetchVaccinations'])->name('pets.vaccinations.fetch');
     // Fetch vaccines available for a species (for dropdown)
@@ -114,6 +120,7 @@ Route::middleware([
     // Medications
     Route::get('/pets/{pet}/medications', [MedicationController::class, 'fetchMedications'])->name('pets.medications.fetch');
     Route::post('/pets/{pet}/medications', [MedicationController::class, 'storeMedication'])->name('pets.medications.store');
+    Route::patch('/pets/{pet}/medications/{medication}/stop', [MedicationController::class, 'stopMedicationReminder'])->name('pets.medications.stop');
     Route::delete('/pets/{pet}/medications/{medication}', [MedicationController::class, 'destroyMedication'])->name('pets.medications.delete');
 
     // Surgical History
@@ -177,9 +184,15 @@ Route::middleware([
 
     // (Lab reports ingestion moved to routes/api.php to avoid CSRF & session middleware)
     Route::get('/lab-reports/associate', [LabReportAssociationController::class, 'index'])->name('lab-reports.associate.index');
+    Route::get('/lab-reports/{labReport}/pdf', [LabReportAssociationController::class, 'showPdf'])->name('lab-reports.pdf');
     Route::post('/lab-reports/{labReport}/associate', [LabReportAssociationController::class, 'associate'])->name('lab-reports.associate');
     Route::post('/lab-reports/{labReport}/create-client', [LabReportAssociationController::class, 'createClientFromReport'])->name('lab-reports.create-client');
     Route::post('/lab-reports/{labReport}/create-pet', [LabReportAssociationController::class, 'createPetFromReport'])->name('lab-reports.create-pet');
+
+    Route::get('/mailbox', [MailboxMessageController::class, 'index'])->name('mailbox.index');
+    Route::post('/mailbox/sync', [MailboxMessageController::class, 'sync'])->name('mailbox.sync');
+    Route::post('/mailbox/{mailboxMessage}/associate', [MailboxMessageController::class, 'associate'])->name('mailbox.associate');
+    Route::get('/mailbox/attachments/{mailboxAttachment}/download', [MailboxMessageController::class, 'downloadAttachment'])->name('mailbox.attachment.download');
 
     // Inventaire Médoc
     Route::get('/inventaire-medoc/create', [InventoryMedocController::class, 'create'])->name('inventaire-medoc.create');

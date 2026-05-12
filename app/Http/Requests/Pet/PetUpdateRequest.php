@@ -57,6 +57,7 @@ class PetUpdateRequest extends FormRequest
                 'max:255',
                 Rule::unique('pets', 'chip_number')->ignore($this->route('id')),
             ],
+            'tag' => ['nullable', 'integer', 'in:1,2,3'],
             'client_id' => ['required', 'integer'],
             // allow HEIC/HEIF and increase max to 4MB
             // Use 'file' instead of 'image' because PHP's image detection may not recognise HEIC/HEIF

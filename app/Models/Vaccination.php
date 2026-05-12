@@ -17,7 +17,12 @@ class Vaccination extends Model
 		'batch_number',
 		'administering_veterinarian',
 		'reminder_date',
+		'is_active',
 		'notes',
+	];
+
+	protected $casts = [
+		'is_active' => 'boolean',
 	];
 
 	public function pet(): BelongsTo

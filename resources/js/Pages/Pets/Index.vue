@@ -5,7 +5,7 @@ import { PlusSmallIcon, EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/
 import Pagination from '@/Components/Pagination.vue'
 import SearchTable from '@/Components/SearchTable.vue'
 import Swal from "sweetalert2";
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import { initFlowbite } from 'flowbite'
 import moment from 'moment';
 import { useToast } from "vue-toastification"
@@ -151,6 +151,10 @@ const sendSms = async (petId) => {
         console.error(error);
     }
 }
+
+const goToPetShow = (pet) => {
+    router.visit(route('pets.show', { slug: pet.slug }))
+}
 </script>
 
 <template>
@@ -267,8 +271,9 @@ const sendSms = async (petId) => {
                                     </th>
                                     <th scope="col" class="px-4 py-3 w-[20%]">{{ t('pets.name') }}</th>
                                     <th scope="col" class="px-4 py-3 w-[20%]">{{ t('pets.species') || 'Espèce' }}</th>
+                                    <th scope="col" class="px-4 py-3 w-[20%]">{{ t('clients.client_name') || 'Propriétaire' }}</th>
                                     <th scope="col" class="px-4 py-3 w-[20%]">{{ t('pets.breed') || 'Race' }}</th>
-                                    <th scope="col" class="px-4 py-3 w-[40%]">{{ t('clients.added') || 'Ajouté' }}</th>
+                                    <th scope="col" class="px-4 py-3 w-[30%]">{{ t('clients.added') || 'Ajouté' }}</th>
                                     <th scope="col" class="px-4 py-3">
                                         <span class="sr-only">Actions</span>
                                     </th>
@@ -277,7 +282,7 @@ const sendSms = async (petId) => {
 
                             <tbody>
                                 <tr v-if="pets.length === 0">
-                                    <td colspan="6" class="pt-8">
+                                    <td colspan="7" class="pt-8">
                                         <div class="flex items-center justify-center h-full">
                                             <div class="flex items-center mt-6 text-center rounded-lg h-96">
                                                 <div class="flex flex-col w-full max-w-sm px-4 mx-auto">
@@ -305,8 +310,13 @@ const sendSms = async (petId) => {
                                         </div>
                                     </td>
                                 </tr>
-                                <tr v-for="pet in pets" :key="pet.id" class="lg:table-row flex flex-col lg:flex-row border-b dark:border-gray-700">
-                                    <th scope="row" class="px-4 py-3">
+                                <tr
+                                    v-for="pet in pets"
+                                    :key="pet.id"
+                                    class="lg:table-row flex flex-col lg:flex-row border-b border-gray-200 dark:border-gray-700 odd:bg-white even:bg-gray-50 hover:bg-indigo-50/40 cursor-pointer transition-colors"
+                                    @click="goToPetShow(pet)"
+                                >
+                                    <th scope="row" class="px-4 py-3" @click.stop>
                                         <div class="flex items-center">
                                             <input v-model="pet.selected" :id="'checkbox-' + pet.id"
                                                 @click="togglePetSelection(pet.id)" type="checkbox"
@@ -325,29 +335,34 @@ const sendSms = async (petId) => {
                                         </span>
                                     </td>
                                     <td class="px-4 py-1 lg:py-">{{ pet.species && pet.species.name ? pet.species.name : '-' }}</td>
+                                    <td class="px-4 py-1 lg:py-3">{{ pet.client && pet.client.name ? pet.client.name : '-' }}</td>
                                     <td class="px-4 py-1 lg:py-3">{{ pet.breed && pet.breed.name ? pet.breed.name : '-' }}</td>
                                     <td class="px-4 py-1 lg:py-3">{{ moment(pet.created_at).format('MMMM Do, YYYY') }}</td>
-                                    <td class="px-4 py-4 lg:py-3 flex items-center justify-start lg:justify-end">
+                                    <td class="px-4 py-4 lg:py-3 flex items-center justify-start lg:justify-end" @click.stop>
                                         <Link :href="route('pets.show', { slug: pet.slug })"
                                             class="inline-flex items-center p-0.5 text-sm font-medium text-center text-gray-500 hover:text-gray-800 rounded-lg focus:outline-none dark:text-gray-400 dark:hover:text-gray-100"
+                                            @click.stop
                                             title="Voir">
                                         <EyeIcon class="w-5 h-5 mr-1" />
                                         <span class="sr-only">View</span>
                                         </Link>
                                     <Link :href="route('pets.consultation', { slug: pet.slug })"
                                         class="inline-flex items-center p-0.5 text-sm font-medium text-center text-gray-500 hover:text-gray-800 rounded-lg focus:outline-none dark:text-gray-400 dark:hover:text-gray-100"
+                                        @click.stop
                                         title="Consultation">
                                         <span class="text-xl">🩺</span>
                                         <span class="sr-only">Consultation</span>
                                     </Link>
                                         <Link :href="route('pets.edit', { slug: pet.slug })"
                                             class="inline-flex items-center p-0.5 text-sm font-medium text-center text-gray-500 hover:text-gray-800 rounded-lg focus:outline-none dark:text-gray-400 dark:hover:text-gray-100"
+                                            @click.stop
                                             title="Éditer">
                                         <PencilSquareIcon class="w-5 h-5 text-indigo-500 hover:text-indigo-800 mr-1" />
                                         <span class="sr-only">Edit</span>
                                         </Link>
                                         <button @click="deletePet(pet.id)"
                                             class="inline-flex items-center p-0.5 text-sm font-medium text-center text-gray-500 hover:text-gray-800 rounded-lg focus:outline-none dark:text-gray-400 dark:hover:text-gray-100"
+                                            @click.stop
                                             type="button">
                                             <TrashIcon class="w-5 h-5 text-red-500 hover:text-red-800" />
                                             <span class="sr-only">Delete</span>

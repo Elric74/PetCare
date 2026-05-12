@@ -31,6 +31,179 @@ class PetController extends Controller
 	/**
 	 * Send an SMS reminder for the next vaccination for a pet.
 	 */
+	private function resolveVaccinationReminder(Pet $pet): array
+	{
+		$today = Carbon::today();
+		$thirtyDaysAgo = $today->copy()->subDays(30);
+
+		$vacc = Vaccination::where('pet_id', $pet->id)
+			->where('is_active', true)
+			->whereNotNull('reminder_date')
+			->where('reminder_date', '>=', $today)
+			->orderBy('reminder_date', 'asc')
+			->first();
+
+		if (! $vacc) {
+			$vacc = Vaccination::where('pet_id', $pet->id)
+				->where('is_active', true)
+				->whereNotNull('reminder_date')
+				->orderBy('reminder_date', 'asc')
+				->first();
+		}
+
+		if (! $vacc) {
+			return ['vaccination' => null, 'category' => null];
+		}
+
+		$category = 'normal';
+		if ($vacc->reminder_date < $today) {
+			$category = $vacc->reminder_date > $thirtyDaysAgo ? 'overdue' : 'late';
+		}
+
+		return ['vaccination' => $vacc, 'category' => $category];
+	}
+
+	private function resolveMedicationReminder(Pet $pet): array
+	{
+		$today = Carbon::today();
+		$thirtyDaysAgo = $today->copy()->subDays(30);
+
+		$medication = Medication::where('pet_id', $pet->id)
+			->where('is_active', true)
+			->whereNotNull('reminder_date')
+			->where('reminder_date', '>=', $today)
+			->orderBy('reminder_date', 'asc')
+			->first();
+
+		if (! $medication) {
+			$medication = Medication::where('pet_id', $pet->id)
+				->where('is_active', true)
+				->whereNotNull('reminder_date')
+				->orderBy('reminder_date', 'asc')
+				->first();
+		}
+
+		if (! $medication) {
+			return ['medication' => null, 'category' => null];
+		}
+
+		$category = 'normal';
+		if ($medication->reminder_date < $today) {
+			$category = $medication->reminder_date > $thirtyDaysAgo ? 'overdue' : 'late';
+		}
+
+		return ['medication' => $medication, 'category' => $category];
+	}
+
+	private function resolveMedicationReminderFromRequest(Pet $pet, Request $request): array
+	{
+		$medicationId = (int) $request->input('medication_id', 0);
+		if ($medicationId <= 0) {
+			return $this->resolveMedicationReminder($pet);
+		}
+
+		$medication = Medication::where('id', $medicationId)
+			->where('pet_id', $pet->id)
+			->where('is_active', true)
+			->whereNotNull('reminder_date')
+			->first();
+
+		if (! $medication) {
+			return ['medication' => null, 'category' => null];
+		}
+
+		$today = Carbon::today();
+		$thirtyDaysAgo = $today->copy()->subDays(30);
+
+		$category = 'normal';
+		if ($medication->reminder_date < $today) {
+			$category = $medication->reminder_date > $thirtyDaysAgo ? 'overdue' : 'late';
+		}
+
+		return ['medication' => $medication, 'category' => $category];
+	}
+
+	private function buildChannelMessage(
+		string $channel,
+		string $context,
+		string $category,
+		string $speciesName,
+		string $petName,
+		string $itemName,
+		string $date
+	): string {
+		$keyPrefix = $context === 'medication' ? 'medication_' : '';
+		$templateKey = $keyPrefix . $channel . '_message_' . $category;
+		$fallbackTemplateKey = $keyPrefix . 'sms_message_' . $category;
+
+		$defaultTemplate = $context === 'medication'
+			? 'Ici votre vétérinaire, votre {species} {pet_name} a un traitement {medication_name} à réaliser avant le {date}. Merci de prendre rdv au plus vite.'
+			: 'Ici votre vétérinaire, votre {species} {pet_name} a besoin d\'avoir son rappel de vaccin {vaccine_name} avant le {date}. Merci de prendre rdv au plus vite.';
+
+		$template = Parameter::get(
+			$templateKey,
+			Parameter::get($fallbackTemplateKey, $defaultTemplate)
+		);
+
+		return str_replace(
+			['{species}', '{pet_name}', '{vaccine_name}', '{medication_name}', '{treatment_name}', '{date}'],
+			[$speciesName, $petName, $itemName, $itemName, $itemName, $date],
+			$template
+		);
+	}
+
+	private function normalizePhoneForWhatsapp(string $phone): string
+	{
+		$digits = preg_replace('/\D+/', '', $phone) ?? '';
+		if ($digits === '') {
+			return '';
+		}
+
+		// BE default fallback for local numbers entered as 0XXXXXXXXX
+		if (str_starts_with($digits, '0')) {
+			return '+32' . ltrim($digits, '0');
+		}
+
+		if (!str_starts_with($digits, '+')) {
+			return '+' . $digits;
+		}
+
+		return $digits;
+	}
+
+	/**
+	 * Block API calls when this channel is turned off for the dashboard (parameters).
+	 *
+	 * @return JsonResponse|null JSON 403 when blocked, otherwise null
+	 */
+	private function guardDashboardChannel(string $reminderContext, string $category, string $channel): ?JsonResponse
+	{
+		$key = match ([$reminderContext, $channel]) {
+			['vaccination', 'sms'] => 'sms_dashboard_' . $category . '_enabled',
+			['vaccination', 'whatsapp'] => 'whatsapp_dashboard_' . $category . '_enabled',
+			['vaccination', 'messenger'] => 'messenger_dashboard_' . $category . '_enabled',
+			['medication', 'sms'] => 'medication_sms_dashboard_' . $category . '_enabled',
+			['medication', 'whatsapp'] => 'medication_whatsapp_dashboard_' . $category . '_enabled',
+			['medication', 'messenger'] => 'medication_messenger_dashboard_' . $category . '_enabled',
+			default => null,
+		};
+
+		if ($key !== null && ! Parameter::isEnabled($key, true)) {
+			$channelLabel = match ($channel) {
+				'sms' => 'SMS',
+				'whatsapp' => 'WhatsApp',
+				'messenger' => 'Messenger',
+				default => $channel,
+			};
+
+			return response()->json([
+				'message' => "L'envoi {$channelLabel} pour ce type de rappel est désactivé dans les paramètres.",
+			], 403);
+		}
+
+		return null;
+	}
+
 	public function sendSms($id, SmsService $smsService)
 	{
 		$pet = Pet::where('id', $id)->with(['client', 'species'])->firstOrFail();
@@ -40,50 +213,29 @@ class PetController extends Controller
 			return response()->json(['message' => 'Client phone number missing'], 422);
 		}
 
-		$today = Carbon::today();
-		$thirtyDaysFromNow = $today->copy()->addDays(30);
-		$thirtyDaysAgo = $today->copy()->subDays(30);
-
-		// Prefer upcoming reminders (>= today), otherwise take the earliest reminder available
-		$vacc = Vaccination::where('pet_id', $pet->id)
-			->whereNotNull('reminder_date')
-			->where('reminder_date', '>=', $today)
-			->orderBy('reminder_date', 'asc')
-			->first();
-
-		if (! $vacc) {
-			$vacc = Vaccination::where('pet_id', $pet->id)
-				->whereNotNull('reminder_date')
-				->orderBy('reminder_date', 'asc')
-				->first();
-		}
-
+		$resolved = $this->resolveVaccinationReminder($pet);
+		$vacc = $resolved['vaccination'];
 		if (! $vacc) {
 			return response()->json(['message' => 'No vaccination reminder found for this pet'], 422);
 		}
 
-		// Determine the category of this vaccination
-		$category = 'normal'; // default
-		if ($vacc->reminder_date < $today) {
-			if ($vacc->reminder_date > $thirtyDaysAgo) {
-				$category = 'overdue';
-			} else {
-				$category = 'late';
-			}
+		$category = $resolved['category'];
+
+		if ($blocked = $this->guardDashboardChannel('vaccination', $category, 'sms')) {
+			return $blocked;
 		}
 
 		$date = Carbon::parse($vacc->reminder_date)->format('d/m/Y');
 		$speciesName = $pet->species ? $pet->species->name : 'animal';
 
-		// Get the appropriate message template based on category
-		$messageKey = 'sms_message_' . $category;
-		$messageTemplate = Parameter::get($messageKey, 'Ici votre vétérinaire, votre {species} {pet_name} a besoin d\'avoir son rappel de vaccin {vaccine_name} avant le {date}. Merci de prendre rdv au plus vite.');
-
-		// Replace variables in the message
-		$message = str_replace(
-			['{species}', '{pet_name}', '{vaccine_name}', '{date}'],
-			[$speciesName, $pet->name, $vacc->vaccine_name, $date],
-			$messageTemplate
+		$message = $this->buildChannelMessage(
+			'sms',
+			'vaccination',
+			$category,
+			$speciesName,
+			$pet->name,
+			$vacc->vaccine_name,
+			$date
 		);
 
 		$result = $smsService->send($client->phone_number, $message, $pet->id, $vacc->id, $category);
@@ -95,10 +247,93 @@ class PetController extends Controller
 		return response()->json(['message' => 'SMS envoyé avec succès']);
 	}
 
+	public function sendWhatsapp($id, SmsService $smsService): JsonResponse
+	{
+		$pet = Pet::where('id', $id)->with(['client', 'species'])->firstOrFail();
+		$client = $pet->client;
+		if (! $client || ! $client->phone_number) {
+			return response()->json(['message' => 'Client phone number missing'], 422);
+		}
+
+		$resolved = $this->resolveVaccinationReminder($pet);
+		$vacc = $resolved['vaccination'];
+		if (! $vacc) {
+			return response()->json(['message' => 'No vaccination reminder found for this pet'], 422);
+		}
+
+		if ($blocked = $this->guardDashboardChannel('vaccination', $resolved['category'], 'whatsapp')) {
+			return $blocked;
+		}
+
+		$phone = $this->normalizePhoneForWhatsapp((string) $client->phone_number);
+		if ($phone === '') {
+			return response()->json(['message' => 'Numéro de téléphone invalide pour WhatsApp'], 422);
+		}
+
+		$date = Carbon::parse($vacc->reminder_date)->format('d/m/Y');
+		$speciesName = $pet->species ? $pet->species->name : 'animal';
+		$message = $this->buildChannelMessage(
+			'whatsapp',
+			'vaccination',
+			$resolved['category'],
+			$speciesName,
+			$pet->name,
+			$vacc->vaccine_name,
+			$date
+		);
+
+		$twilioResult = $smsService->sendWhatsapp($phone, $message);
+		if ($twilioResult['success']) {
+			return response()->json([
+				'message' => 'WhatsApp envoyé avec succès via Twilio.',
+				'mode' => 'twilio',
+			]);
+		}
+
+		$waDigits = ltrim($phone, '+');
+		return response()->json([
+			'message' => 'Twilio WhatsApp non disponible, ouverture WhatsApp Web en secours.',
+			'mode' => 'web_fallback',
+			'url' => 'https://wa.me/' . $waDigits . '?text=' . rawurlencode($message),
+		]);
+	}
+
+	public function sendMessenger($id): JsonResponse
+	{
+		$pet = Pet::where('id', $id)->with(['client', 'species'])->firstOrFail();
+		$resolved = $this->resolveVaccinationReminder($pet);
+		$vacc = $resolved['vaccination'];
+		if (! $vacc) {
+			return response()->json(['message' => 'No vaccination reminder found for this pet'], 422);
+		}
+
+		if ($blocked = $this->guardDashboardChannel('vaccination', $resolved['category'], 'messenger')) {
+			return $blocked;
+		}
+
+		$date = Carbon::parse($vacc->reminder_date)->format('d/m/Y');
+		$speciesName = $pet->species ? $pet->species->name : 'animal';
+		$message = $this->buildChannelMessage(
+			'messenger',
+			'vaccination',
+			$resolved['category'],
+			$speciesName,
+			$pet->name,
+			$vacc->vaccine_name,
+			$date
+		);
+
+		return response()->json([
+			'message' => 'Message Messenger prêt (copié côté navigateur).',
+			'url' => 'https://www.messenger.com/',
+			'prefill_message' => $message,
+		]);
+	}
+
 	/**
 	 * Send an SMS reminder for the next medication for a pet.
 	 */
-	public function sendMedicationSms($id, SmsService $smsService)
+	public function sendMedicationSms($id, Request $request, SmsService $smsService)
 	{
 		$pet = Pet::where('id', $id)->with(['client', 'species'])->firstOrFail();
 
@@ -107,50 +342,30 @@ class PetController extends Controller
 			return response()->json(['message' => 'Client phone number missing'], 422);
 		}
 
-		$today = Carbon::today();
-		$thirtyDaysFromNow = $today->copy()->addDays(30);
-		$thirtyDaysAgo = $today->copy()->subDays(30);
-
-		// Prefer upcoming reminders (>= today), otherwise take the earliest reminder available
-		$medication = Medication::where('pet_id', $pet->id)
-			->whereNotNull('reminder_date')
-			->where('reminder_date', '>=', $today)
-			->orderBy('reminder_date', 'asc')
-			->first();
-
-		if (! $medication) {
-			$medication = Medication::where('pet_id', $pet->id)
-				->whereNotNull('reminder_date')
-				->orderBy('reminder_date', 'asc')
-				->first();
-		}
+		$resolved = $this->resolveMedicationReminderFromRequest($pet, $request);
+		$medication = $resolved['medication'];
 
 		if (! $medication) {
 			return response()->json(['message' => 'No medication reminder found for this pet'], 422);
 		}
 
-		// Determine the category of this medication
-		$category = 'normal'; // default
-		if ($medication->reminder_date < $today) {
-			if ($medication->reminder_date > $thirtyDaysAgo) {
-				$category = 'overdue';
-			} else {
-				$category = 'late';
-			}
+		$category = $resolved['category'];
+
+		if ($blocked = $this->guardDashboardChannel('medication', $category, 'sms')) {
+			return $blocked;
 		}
 
 		$date = Carbon::parse($medication->reminder_date)->format('d/m/Y');
 		$speciesName = $pet->species ? $pet->species->name : 'animal';
 
-		// Get the appropriate message template based on category
-		$messageKey = 'medication_sms_message_' . $category;
-		$messageTemplate = Parameter::get($messageKey, 'Ici votre vétérinaire, votre {species} {pet_name} a besoin de son traitement {medication_name} avant le {date}. Merci de prendre rdv au plus vite.');
-
-		// Replace variables in the message
-		$message = str_replace(
-			['{species}', '{pet_name}', '{medication_name}', '{date}'],
-			[$speciesName, $pet->name, $medication->medication_name, $date],
-			$messageTemplate
+		$message = $this->buildChannelMessage(
+			'sms',
+			'medication',
+			$category,
+			$speciesName,
+			$pet->name,
+			$medication->medication_name,
+			$date
 		);
 
 		$result = $smsService->sendMedication($client->phone_number, $message, $pet->id, $medication->id, $category);
@@ -160,6 +375,89 @@ class PetController extends Controller
 		}
 
 		return response()->json(['message' => 'SMS envoyé avec succès']);
+	}
+
+	public function sendMedicationWhatsapp($id, Request $request, SmsService $smsService): JsonResponse
+	{
+		$pet = Pet::where('id', $id)->with(['client', 'species'])->firstOrFail();
+		$client = $pet->client;
+		if (! $client || ! $client->phone_number) {
+			return response()->json(['message' => 'Client phone number missing'], 422);
+		}
+
+		$resolved = $this->resolveMedicationReminderFromRequest($pet, $request);
+		$medication = $resolved['medication'];
+		if (! $medication) {
+			return response()->json(['message' => 'No medication reminder found for this pet'], 422);
+		}
+
+		if ($blocked = $this->guardDashboardChannel('medication', $resolved['category'], 'whatsapp')) {
+			return $blocked;
+		}
+
+		$phone = $this->normalizePhoneForWhatsapp((string) $client->phone_number);
+		if ($phone === '') {
+			return response()->json(['message' => 'Numéro de téléphone invalide pour WhatsApp'], 422);
+		}
+
+		$date = Carbon::parse($medication->reminder_date)->format('d/m/Y');
+		$speciesName = $pet->species ? $pet->species->name : 'animal';
+		$message = $this->buildChannelMessage(
+			'whatsapp',
+			'medication',
+			$resolved['category'],
+			$speciesName,
+			$pet->name,
+			$medication->medication_name,
+			$date
+		);
+
+		$twilioResult = $smsService->sendWhatsapp($phone, $message);
+		if ($twilioResult['success']) {
+			return response()->json([
+				'message' => 'WhatsApp envoyé avec succès via Twilio.',
+				'mode' => 'twilio',
+			]);
+		}
+
+		$waDigits = ltrim($phone, '+');
+		return response()->json([
+			'message' => 'Twilio WhatsApp non disponible, ouverture WhatsApp Web en secours.',
+			'mode' => 'web_fallback',
+			'url' => 'https://wa.me/' . $waDigits . '?text=' . rawurlencode($message),
+		]);
+	}
+
+	public function sendMedicationMessenger($id, Request $request): JsonResponse
+	{
+		$pet = Pet::where('id', $id)->with(['client', 'species'])->firstOrFail();
+		$resolved = $this->resolveMedicationReminderFromRequest($pet, $request);
+		$medication = $resolved['medication'];
+		if (! $medication) {
+			return response()->json(['message' => 'No medication reminder found for this pet'], 422);
+		}
+
+		if ($blocked = $this->guardDashboardChannel('medication', $resolved['category'], 'messenger')) {
+			return $blocked;
+		}
+
+		$date = Carbon::parse($medication->reminder_date)->format('d/m/Y');
+		$speciesName = $pet->species ? $pet->species->name : 'animal';
+		$message = $this->buildChannelMessage(
+			'messenger',
+			'medication',
+			$resolved['category'],
+			$speciesName,
+			$pet->name,
+			$medication->medication_name,
+			$date
+		);
+
+		return response()->json([
+			'message' => 'Message Messenger prêt (copié côté navigateur).',
+			'url' => 'https://www.messenger.com/',
+			'prefill_message' => $message,
+		]);
 	}
 
 	public function index(): Response

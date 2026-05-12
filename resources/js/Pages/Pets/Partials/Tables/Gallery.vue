@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import {
   TransitionRoot,
   TransitionChild,
@@ -17,6 +17,67 @@ const props = defineProps({
 
 const isViewerOpen = ref(false)
 const currentViewPath = ref('')
+
+const sortedImages = computed(() => {
+  const images = Array.isArray(props.pet?.images) ? [...props.pet.images] : []
+
+  return images.sort((a, b) => {
+    const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0
+    const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0
+
+    if (aTime !== bTime) {
+      return bTime - aTime
+    }
+
+    return (b?.id ?? 0) - (a?.id ?? 0)
+  })
+})
+
+function formatImageDate(image) {
+  if (!image?.created_at) {
+    return 'Date inconnue'
+  }
+
+  const date = new Date(image.created_at)
+  if (Number.isNaN(date.getTime())) {
+    return 'Date inconnue'
+  }
+
+  return date.toLocaleString('fr-BE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function dateDisplayClass(image) {
+  if (!image?.created_at) {
+    return 'text-black dark:text-gray-100'
+  }
+
+  const date = new Date(image.created_at)
+  if (Number.isNaN(date.getTime())) {
+    return 'text-black dark:text-gray-100'
+  }
+
+  const today = new Date()
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const startOfImageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffMs = startOfToday.getTime() - startOfImageDay.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) {
+    return 'text-red-600 font-bold'
+  }
+
+  if (diffDays > 0 && diffDays <= 2) {
+    return 'text-red-600'
+  }
+
+  return 'text-black dark:text-gray-100'
+}
 
 function openViewer(path) {
   currentViewPath.value = path
@@ -36,7 +97,10 @@ function closeViewer() {
 		</template>
 		<template v-else>
 			<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-				<div v-for="image in pet.images" :key="image.id" class="relative">
+				<div v-for="image in sortedImages" :key="image.id" class="relative">
+					<p class="mb-2 text-xs" :class="dateDisplayClass(image)">
+						Ajouté le {{ formatImageDate(image) }}
+					</p>
 					<!-- Display PDF as clickable thumbnail -->
 					<div v-if="image.path.toLowerCase().endsWith('.pdf')" @click="openViewer('/' + image.path)"
 						class="block w-full h-64 bg-gray-100 rounded-lg overflow-hidden hover:bg-gray-200 transition cursor-pointer">

@@ -14,10 +14,19 @@ class MedicationService
 		foreach ($medications as $medication) {
 			// Ensure pet_id is set
 			$medication['pet_id'] = $petId;
+			$medication['is_active'] = array_key_exists('is_active', $medication)
+				? (bool) $medication['is_active']
+				: true;
 
-			// Compute reminder_date based on frequency and administered_at
-			if (!empty($medication['administered_at']) && !empty($medication['frequency'])) {
+			// Compute reminder_date only for active reminders with periodicity.
+			if (
+				$medication['is_active'] === true
+				&& !empty($medication['administered_at'])
+				&& !empty($medication['frequency'])
+			) {
 				$medication['reminder_date'] = $this->computeReminderDate($medication['administered_at'], $medication['frequency']);
+			} else {
+				$medication['reminder_date'] = null;
 			}
 
 			if (isset($medication['id'])) {
@@ -44,6 +53,22 @@ class MedicationService
 
 		return $medications;
 
+	}
+
+	public function stopMedicationReminder($petId, $medicationId)
+	{
+		$medication = Medication::findOrFail($medicationId);
+
+		if ((int) $medication->pet_id !== (int) $petId) {
+			throw new \Exception('The medication does not belong to the specified pet');
+		}
+
+		$medication->update([
+			'is_active' => false,
+			'reminder_date' => null,
+		]);
+
+		return $medication->fresh();
 	}
 
 	public function destroyMedication($petId, $medicationId)

@@ -39,6 +39,18 @@ export const validateForm = (histories) => {
 		if (history.notes && typeof history.notes !== 'string') {
 			errors.value[`histories[${i}].notes`] = 'This field must be a string.';
 		}
+
+		const structuredKeys = ['yeux_oreilles', 'bouche', 'coeur', 'mobilite', 'peau', 'autre'];
+		if (history.structured_notes != null && typeof history.structured_notes === 'object') {
+			for (const key of structuredKeys) {
+				if (history.structured_notes[key] == null) {
+					continue;
+				}
+				if (typeof history.structured_notes[key] !== 'string') {
+					errors.value[`histories[${i}].structured_notes.${key}`] = 'This field must be a string.';
+				}
+			}
+		}
 	}
 };
 

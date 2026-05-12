@@ -28,6 +28,7 @@ class MedicationRequest extends FormRequest
             'medications.*.administered_at' => ['required', 'date'],
             'medications.*.dosage' => ['nullable', 'string', 'max:255'],
             'medications.*.frequency' => ['nullable', 'string', 'max:255'],
+            'medications.*.is_active' => ['nullable', 'boolean'],
             'medications.*.administering_veterinarian' => ['nullable', 'string', 'max:255'],
             'medications.*.notes' => ['nullable', 'string'],
         ];

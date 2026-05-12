@@ -25,6 +25,7 @@ class Pet extends Model
 		'decedee',
 		'date_deces',
 		'chip_number',
+		'tag',
 		'client_id',
 		'photo'
 	];
@@ -88,6 +89,11 @@ class Pet extends Model
 		public function images()
 		{
 			return $this->hasMany(Image::class);
+		}
+
+		public function mailboxMessages(): HasMany
+		{
+			return $this->hasMany(MailboxMessage::class);
 		}
 
 		public function getAgeYearsMonthsAttribute()

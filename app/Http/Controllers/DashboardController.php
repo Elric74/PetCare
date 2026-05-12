@@ -6,6 +6,7 @@ use App\Models\Pet;
 use App\Models\SmsLog;
 use App\Models\Vaccination;
 use App\Models\Medication;
+use App\Models\LabReport;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class DashboardController extends Controller
         $normalVaccinationIds = Vaccination::whereHas('pet', function($q) {
                 $q->where('decedee', false);
             })
+          ->where('is_active', true)
           ->whereNotNull('reminder_date')
               ->where('reminder_date', '>=', $today)
               ->where('reminder_date', '<=', $normalWindowEnd)
@@ -42,6 +44,7 @@ class DashboardController extends Controller
         $overdueVaccinationIds = Vaccination::whereHas('pet', function($q) {
                 $q->where('decedee', false);
             })
+          ->where('is_active', true)
           ->whereNotNull('reminder_date')
               ->where('reminder_date', '<', $today)
               ->where('reminder_date', '>', $overdueWindowStart)
@@ -57,6 +60,7 @@ class DashboardController extends Controller
         $lateVaccinationIds = Vaccination::whereHas('pet', function($q) {
                 $q->where('decedee', false);
             })
+          ->where('is_active', true)
           ->whereNotNull('reminder_date')
               ->where('reminder_date', '<=', $overdueWindowStart)
               ->whereNotExists(function ($query) use ($normalWindowEnd) {
@@ -98,6 +102,7 @@ class DashboardController extends Controller
         $normalMedicationIds = Medication::whereHas('pet', function($q) {
                 $q->where('decedee', false);
             })
+          ->where('is_active', true)
           ->whereNotNull('reminder_date')
           ->where('reminder_date', '>=', $today)
           ->where('reminder_date', '<=', $medNormalWindowEnd)
@@ -113,6 +118,7 @@ class DashboardController extends Controller
         $overdueMedicationIds = Medication::whereHas('pet', function($q) {
                 $q->where('decedee', false);
             })
+          ->where('is_active', true)
           ->whereNotNull('reminder_date')
                   ->where('reminder_date', '<', $today)
                   ->where('reminder_date', '>', $medOverdueWindowStart)
@@ -128,6 +134,7 @@ class DashboardController extends Controller
         $lateMedicationIds = Medication::whereHas('pet', function($q) {
                 $q->where('decedee', false);
             })
+          ->where('is_active', true)
           ->whereNotNull('reminder_date')
                   ->where('reminder_date', '<=', $medOverdueWindowStart)
                   ->whereNotExists(function ($query) use ($medNormalWindowEnd) {
@@ -158,7 +165,71 @@ class DashboardController extends Controller
         $sentMedicationOverdue = SmsLog::where('medication_sms_sent_as_overdue', true)->pluck('medication_id')->toArray();
         $sentMedicationLate = SmsLog::where('medication_sms_sent_as_late', true)->pluck('medication_id')->toArray();
 
+        $latestLabReports = LabReport::query()
+            ->whereNotNull('pdf_path')
+            ->orderByDesc('updated_date')
+            ->orderByDesc('id')
+            ->limit(3)
+            ->get([
+                'id',
+                'pet_name',
+                'owner_first_name',
+                'owner_last_name',
+                'reception_date',
+                'pdf_path',
+            ])
+            ->map(function (LabReport $report): array {
+                $ownerFullName = trim(($report->owner_first_name ?? '') . ' ' . ($report->owner_last_name ?? ''));
+
+                return [
+                    'id' => $report->id,
+                    'pet_name' => $report->pet_name ?: 'Animal inconnu',
+                    'owner_name' => $ownerFullName !== '' ? $ownerFullName : 'Propriétaire inconnu',
+                    'reception_date' => optional($report->reception_date)->toDateString(),
+                    'pdf_url' => route('lab-reports.pdf', ['labReport' => $report->id]),
+                ];
+            })
+            ->values();
+
+        $dashboardChannelsEnabled = [
+            'vaccination' => [
+                'normal' => [
+                    'sms' => \App\Models\Parameter::isEnabled('sms_dashboard_normal_enabled', true),
+                    'whatsapp' => \App\Models\Parameter::isEnabled('whatsapp_dashboard_normal_enabled', true),
+                    'messenger' => \App\Models\Parameter::isEnabled('messenger_dashboard_normal_enabled', true),
+                ],
+                'overdue' => [
+                    'sms' => \App\Models\Parameter::isEnabled('sms_dashboard_overdue_enabled', true),
+                    'whatsapp' => \App\Models\Parameter::isEnabled('whatsapp_dashboard_overdue_enabled', true),
+                    'messenger' => \App\Models\Parameter::isEnabled('messenger_dashboard_overdue_enabled', true),
+                ],
+                'late' => [
+                    'sms' => \App\Models\Parameter::isEnabled('sms_dashboard_late_enabled', true),
+                    'whatsapp' => \App\Models\Parameter::isEnabled('whatsapp_dashboard_late_enabled', true),
+                    'messenger' => \App\Models\Parameter::isEnabled('messenger_dashboard_late_enabled', true),
+                ],
+            ],
+            'medication' => [
+                'normal' => [
+                    'sms' => \App\Models\Parameter::isEnabled('medication_sms_dashboard_normal_enabled', true),
+                    'whatsapp' => \App\Models\Parameter::isEnabled('medication_whatsapp_dashboard_normal_enabled', true),
+                    'messenger' => \App\Models\Parameter::isEnabled('medication_messenger_dashboard_normal_enabled', true),
+                ],
+                'overdue' => [
+                    'sms' => \App\Models\Parameter::isEnabled('medication_sms_dashboard_overdue_enabled', true),
+                    'whatsapp' => \App\Models\Parameter::isEnabled('medication_whatsapp_dashboard_overdue_enabled', true),
+                    'messenger' => \App\Models\Parameter::isEnabled('medication_messenger_dashboard_overdue_enabled', true),
+                ],
+                'late' => [
+                    'sms' => \App\Models\Parameter::isEnabled('medication_sms_dashboard_late_enabled', true),
+                    'whatsapp' => \App\Models\Parameter::isEnabled('medication_whatsapp_dashboard_late_enabled', true),
+                    'messenger' => \App\Models\Parameter::isEnabled('medication_messenger_dashboard_late_enabled', true),
+                ],
+            ],
+        ];
+
         return Inertia::render('Dashboard', [
+          'dashboardChannelsEnabled' => $dashboardChannelsEnabled,
           'petsWithNormalReminders' => $petsWithNormalReminders,
           'petsWithOverdueReminders' => $petsWithOverdueReminders,
           'petsWithLateReminders' => $petsWithLateReminders,
@@ -171,6 +242,7 @@ class DashboardController extends Controller
                   'sentMedicationNormal' => $sentMedicationNormal,
                   'sentMedicationOverdue' => $sentMedicationOverdue,
                   'sentMedicationLate' => $sentMedicationLate,
+                  'latestLabReports' => $latestLabReports,
         ]);
     }
 }

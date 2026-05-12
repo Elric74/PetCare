@@ -39,14 +39,14 @@ const props = defineProps({
 
 		<div class="max-w-full px-2 py-10 sm:px-0">
 			<TabGroup>
-				<TabList class="flex flex-col sm:flex-row space-x-1 rounded-xl bg-blue-900/20 p-1">
+				<TabList class="flex flex-col sm:flex-row space-x-1 rounded-t-md bg-blue-900/20">
 					<Tab as="template" v-slot="{ selected }" v-for="tab in tabs" :key="tab">
 						<button :class="[
-							'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
-              'ring-white/60 ring-offset-2 focus:outline-none focus:ring-2',
-              selected
-                ? 'bg-white text-indigo-700 shadow'
-                : 'text-blue-100 hover:bg-white/[0.12] hover:text-white',
+							'w-full rounded-t-md py-2.5 text-sm font-medium leading-5',
+							'ring-white/60 ring-offset-2 focus:outline-none',
+							selected
+								? 'bg-white text-indigo-700'
+								: 'bg-blue-800/70 text-white hover:bg-blue-700',
 						]">
 							{{ tab }}
 						</button>

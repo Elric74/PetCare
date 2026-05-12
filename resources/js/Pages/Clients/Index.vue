@@ -5,7 +5,7 @@ import { PlusSmallIcon, EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/
 import Pagination from '@/Components/Pagination.vue'
 import SearchTable from '@/Components/SearchTable.vue'
 import Swal from "sweetalert2";
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import { initFlowbite } from 'flowbite'
 import moment from 'moment';
 import { useToast } from "vue-toastification"
@@ -89,6 +89,13 @@ const deleteClient = (id) => {
         }
     });
 }
+
+const goToClientShow = (client) => {
+    if (!client?.slug) {
+        return;
+    }
+    router.visit(route('clients.show', { slug: client.slug }));
+};
 
 const handleBulkDelete = () => {
     if (selectedClientIds.value.length > 0) {
@@ -190,7 +197,7 @@ const handleBulkDelete = () => {
                                         </div>
                                     </th>
                                     <th scope="col" class="px-4 py-3 w-[20%]">{{ t('clients.client_name') }}</th>
-                                    <th scope="col" class="px-4 py-3 w-[20%]">{{ t('clients.email') || t('auth.email') }}</th>
+                                    <th scope="col" class="px-4 py-3 w-[20%]">{{ t('clients.address') || 'Adresse' }}</th>
                                     <th scope="col" class="px-4 py-3 w-[20%]">{{ t('clients.phone_number') }}</th>
                                     <th scope="col" class="px-4 py-3 w-[40%]">{{ t('clients.added') || 'Ajouté' }}</th>
                                     <th scope="col" class="px-4 py-3">
@@ -229,8 +236,10 @@ const handleBulkDelete = () => {
                                         </div>
                                     </td>
                                 </tr>
-                                <tr v-for="client in clients" :key="client.id" class="lg:table-row flex flex-col lg:flex-row border-b dark:border-gray-700">
-                                    <th scope="row" class="px-4 py-3">
+                                <tr v-for="client in clients" :key="client.id"
+                                    class="lg:table-row flex flex-col lg:flex-row border-b dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                                    @click="goToClientShow(client)">
+                                    <th scope="row" class="px-4 py-3" @click.stop>
                                         <div class="flex items-center">
                                             <input v-model="client.selected" :id="'checkbox-' + client.id"
                                                 @click="togglePetSelection(client.id)" type="checkbox"
@@ -241,10 +250,10 @@ const handleBulkDelete = () => {
                                     <td class="px-4 py-1 lg:py-3 font-medium text-gray-900 whitespace-nowrap dark:text-white">
                                         {{ client.name }}
                                     </td>
-                                    <td class="px-4 py-1 lg:py-">{{ client.email }}</td>
+                                    <td class="px-4 py-1 lg:py-3">{{ client.address }}</td>
                                     <td class="px-4 py-1 lg:py-3">{{ client.phone_number }}</td>
                                     <td class="px-4 py-1 lg:py-3">{{ moment(client.created_at).format('MMMM Do, YYYY') }}</td>
-                                    <td class="px-4 py-4 lg:py-3 flex items-center justify-start lg:justify-end">
+                                    <td class="px-4 py-4 lg:py-3 flex items-center justify-start lg:justify-end" @click.stop>
                                         <Link :href="route('clients.show', { slug: client.slug })"
                                             class="inline-flex items-center p-0.5 text-sm font-medium text-center text-gray-500 hover:text-gray-800 rounded-lg focus:outline-none dark:text-gray-400 dark:hover:text-gray-100">
                                         <EyeIcon class="w-5 h-5 mr-1" />

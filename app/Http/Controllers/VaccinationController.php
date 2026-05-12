@@ -38,6 +38,16 @@ class VaccinationController extends Controller
 		], $response['status']);
 	}
 
+	public function stopVaccinationReminder($petId, $vaccinationId)
+	{
+		$vaccination = $this->vaccinationService->stopVaccinationReminder($petId, $vaccinationId);
+
+		return response()->json([
+			'message' => 'Rappel arrêté pour ce vaccin.',
+			'vaccination' => $vaccination,
+		], 200);
+	}
+
 	public function fetchVaccinesBySpecies($speciesId)
 	{
 		$vaccines = $this->vaccinationService->fetchVaccinesBySpecies($speciesId);

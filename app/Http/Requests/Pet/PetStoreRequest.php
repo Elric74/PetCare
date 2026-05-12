@@ -50,6 +50,7 @@ class PetStoreRequest extends FormRequest
             'is_sterilized' => ['nullable', 'boolean'],
             'sterilized_at' => ['nullable', 'date', 'before_or_equal:today'],
             'chip_number' => ['nullable', 'string', 'max:255', 'unique:pets,chip_number'],
+            'tag' => ['nullable', 'integer', 'in:1,2,3'],
             'client_id' => ['required', 'integer'],
             // allow HEIC/HEIF and increase max to 4MB
             // Use 'file' instead of 'image' because PHP's image detection may not recognise HEIC/HEIF

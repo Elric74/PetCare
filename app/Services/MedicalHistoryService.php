@@ -3,36 +3,51 @@
 namespace App\Services;
 
 use App\Models\MedicalHistory;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class MedicalHistoryService
 {
-	public function storeHistory($petId, $histories)
+	public function storeHistory($petId, $histories): array
 	{
 		$savedHistories = [];
+		$petId = (int) $petId;
 
 		foreach ($histories as $history) {
-			if (isset($history['id'])) {
-				MedicalHistory::find($history['id'])->update($history);
-			} else {
-				$savedHistory = MedicalHistory::updateOrCreate(
-					['id' => $history['id']],
-					$history
-				);
+			$id = $history['id'] ?? null;
 
-				$savedHistories[] = $savedHistory;
+			if ($id !== null && $id !== '') {
+				$model = MedicalHistory::find((int) $id);
+				if ($model !== null && (int) $model->pet_id === $petId) {
+					$model->update($this->fillablePayload($history, $petId));
+				}
+			} else {
+				$savedHistories[] = MedicalHistory::create($this->fillablePayload($history, $petId));
 			}
 		}
 
 		return $savedHistories;
 	}
 
+	private function fillablePayload(array $history, int $petId): array
+	{
+		$structured = $history['structured_notes'] ?? null;
+		if (is_array($structured) && $structured === []) {
+			$structured = null;
+		}
+
+		return [
+			'pet_id' => $petId,
+			'condition' => $history['condition'] ?? null,
+			'diagnosis_date' => $history['diagnosis_date'] ?? null,
+			'treatment' => $history['treatment'] ?? null,
+			'weight_g' => $history['weight_g'] ?? null,
+			'notes' => $history['notes'] ?? null,
+			'structured_notes' => $structured,
+		];
+	}
+
 	public function fetchHistories($petId)
 	{
-		$histories = MedicalHistory::where('pet_id', $petId)->get();
-
-    return $histories;
-
+		return MedicalHistory::where('pet_id', $petId)->get();
 	}
 
 	public function destroyHistory($petId, $historyId)

@@ -14,6 +14,10 @@ class VaccinationService
     $savedVaccinations = [];
 
     foreach ($vaccinations as $vaccination) {
+        $vaccination['is_active'] = array_key_exists('is_active', $vaccination)
+            ? (bool) $vaccination['is_active']
+            : true;
+
         if (isset($vaccination['id']) && $vaccination['id']) {
             $existingVaccination = Vaccination::find($vaccination['id']);
             if ($existingVaccination) {
@@ -34,6 +38,22 @@ class VaccinationService
       $vaccinations = Vaccination::where('pet_id', $petId)->get();
 
       return $vaccinations;
+  }
+
+  public function stopVaccinationReminder($petId, $vaccinationId)
+  {
+    $pet = Pet::findOrFail($petId);
+    $vaccination = Vaccination::findOrFail($vaccinationId);
+
+    if ((int) $vaccination->pet_id !== (int) $pet->id) {
+      throw new \Exception('The vaccination does not belong to the specified pet');
+    }
+
+    $vaccination->update([
+      'is_active' => false,
+    ]);
+
+    return $vaccination->fresh();
   }
   public function destroyVaccination($petId, $vaccinationId)
   {

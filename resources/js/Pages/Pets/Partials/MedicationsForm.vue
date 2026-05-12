@@ -27,7 +27,7 @@ onMounted(async () => {
 })
 
 const medicationsForm = ref([
-	{ medication_name: '', administered_at: moment().format('YYYY-MM-DD'), frequency: '', administering_veterinarian: 'Nathalie Staffe', notes: '' }
+	{ medication_name: '', administered_at: moment().format('YYYY-MM-DD'), frequency: '', is_active: true, administering_veterinarian: 'Nathalie Staffe', notes: '' }
 ]);
 
 const recurringTreatments = ref([])
@@ -59,7 +59,7 @@ const computeReminderDate = (administeredAt, frequency) => {
 }
 
 const addMedication = () => {
-	const newItem = { pet_id: '', medication_name: '', administered_at: moment().format('YYYY-MM-DD'), frequency: '', administering_veterinarian: 'Nathalie Staffe', notes: '' }
+	const newItem = { pet_id: '', medication_name: '', administered_at: moment().format('YYYY-MM-DD'), frequency: '', is_active: true, administering_veterinarian: 'Nathalie Staffe', notes: '' }
 	medicationsForm.value.unshift(newItem)
 };
 
@@ -73,6 +73,7 @@ const deleteMedication = async (index) => {
 			administered_at: null,
 			dosage: '',
 			frequency: '',
+			is_active: true,
 			administering_veterinarian: '',
 			notes: '',
 		};
@@ -104,6 +105,7 @@ const storeMedication = async () => {
 
 	submitData.medications.forEach((medication) => {
 		medication.pet_id = pet.id;
+		medication.is_active = medication.is_active !== false;
 		if (!medication.id) {
 			medication.id = null;
 		}
@@ -141,18 +143,38 @@ const storeMedication = async () => {
 
 const fetchMedications = async () => {
 	const response = await axios.get(`/pets/${pet.id}/medications`);
-	medicationsForm.value = response.data;
+	medicationsForm.value = response.data.map((m) => ({
+		...m,
+		is_active: m.is_active !== false,
+	}));
 
 	if (medicationsForm.value.length === 0) {
 		medicationsForm.value.push({
 			medication_name: '',
 			administered_at: moment().format('YYYY-MM-DD'),
 			frequency: '',
+			is_active: true,
 			administering_veterinarian: 'Nathalie Staffe',
 			notes: '',
 		});
 	}
 	nextTick(() => autoResizeAll())
+};
+
+const stopReminder = async (index) => {
+	const medication = medicationsForm.value[index];
+	if (!medication?.id) {
+		return;
+	}
+
+	const response = await axios.patch(`/pets/${pet.id}/medications/${medication.id}/stop`);
+	medicationsForm.value[index] = {
+		...medicationsForm.value[index],
+		...response.data.medication,
+		is_active: false,
+		frequency: medicationsForm.value[index].frequency || '',
+	};
+	toast.success(response.data.message || 'Rappel arrêté');
 };
 
 // Auto-resize helpers for notes textarea
@@ -225,6 +247,9 @@ watch(
 						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-sm"
 						:class="{ 'border-red-500': errors[`medications[${index}].frequency`] }">
 					<span class="text-red-500 text-xs">{{ errors[`medications[${index}].frequency`] }}</span>
+					<p v-if="medication.is_active === false" class="mt-1 text-xs font-medium text-red-600">
+						Rappel arrêté
+					</p>
 				</div>
 
 				<div class="w-full lg:w-[180px]">
@@ -260,6 +285,14 @@ watch(
 				</div>
 
 				<div class="lg:w-auto lg:self-end">
+					<button
+						v-if="medication.id && medication.is_active !== false"
+						@click.stop.prevent="stopReminder(index)"
+						class="mr-2 bg-amber-500 hover:bg-amber-600 text-white p-2 rounded-md"
+						title="Arrêter les rappels pour ce traitement"
+					>
+						Stop Rappel
+					</button>
 					<button v-if="medication.id" @click.stop.prevent="deleteMedication(index)"
 						class="bg-red-500 hover:bg-red-700 text-white p-2 rounded-md">
 						<TrashIcon class="h-6 w-6" />

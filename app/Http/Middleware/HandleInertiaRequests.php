@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\LabReport;
+use App\Models\MailboxMessage;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -47,6 +48,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'notifications' => [
                 'unassociatedPsCount' => fn () => LabReport::query()->whereNull('pet_id')->count(),
+                'unassociatedMailboxCount' => fn () => MailboxMessage::query()->whereNull('pet_id')->count(),
             ],
         ]);
     }

@@ -13,7 +13,9 @@
         "laravel/sanctum": "^3.3",
         "laravel/tinker": "^2.8",
         "league/csv": "^9.27",
-        "tightenco/ziggy": "^1.0"
+        "tightenco/ziggy": "^1.0",
+        "webklex/laravel-imap": "5.3",
+        "zbateson/mail-mime-parser": "3.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",

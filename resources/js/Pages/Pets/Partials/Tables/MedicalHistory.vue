@@ -1,13 +1,38 @@
 <script setup>
-import WeightChart from '@/Pages/Pets/Partials/Charts/WeightChart.vue';
+import WeightChart from '@/Pages/Pets/Partials/Charts/WeightChart.vue'
 
-// Define the props
+const SECTION_LABELS = {
+	yeux_oreilles: 'Yeux / oreilles',
+	bouche: 'Bouche',
+	coeur: 'Cœur',
+	mobilite: 'Mobilité',
+	peau: 'Peau',
+	autre: 'Autre',
+}
+
+function formatMedicalNotes(history) {
+	const parts = []
+	if (history.notes && String(history.notes).trim()) {
+		parts.push(String(history.notes).trim())
+	}
+	const sn = history.structured_notes
+	if (sn && typeof sn === 'object') {
+		for (const [key, label] of Object.entries(SECTION_LABELS)) {
+			const text = sn[key]
+			if (text != null && String(text).trim()) {
+				parts.push(`[${label}]\n${String(text).trim()}`)
+			}
+		}
+	}
+	return parts.join('\n\n')
+}
+
 const props = defineProps({
-  pet: {
-    type: Object,
-    required: true
-  }
-});
+	pet: {
+		type: Object,
+		required: true,
+	},
+})
 </script>
 
 <template>
@@ -34,8 +59,9 @@ const props = defineProps({
               <td class="whitespace-normal px-3 py-4 text-sm text-gray-500">{{ history.diagnosis_date }}</td>
               <td class="whitespace-normal px-3 py-4 text-sm text-gray-500">{{ history.treatment }}</td>
               <td class="whitespace-normal px-3 py-4 text-sm text-gray-500">{{ history.weight_g ? history.weight_g + ' g' : '-' }}</td>
-              <td class="relative whitespace-normal py-4 pl-3 pr-4 text-right text-sm sm:pr-0 text-gray-500">{{
-                history.notes }}</td>
+              <td class="relative whitespace-normal py-4 pl-3 pr-4 text-right text-sm sm:pr-0 text-gray-500 max-w-md">
+                <span class="block text-left whitespace-pre-wrap">{{ formatMedicalNotes(history) || '—' }}</span>
+              </td>
             </tr>
           </tbody>
         </table>

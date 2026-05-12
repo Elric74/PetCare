@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="PetCare favicon">
+  <rect width="256" height="256" fill="#2563eb" />
+  <ellipse cx="82" cy="90" rx="20" ry="25" fill="#ffffff" />
+  <ellipse cx="116" cy="72" rx="20" ry="25" fill="#ffffff" />
+  <ellipse cx="150" cy="72" rx="20" ry="25" fill="#ffffff" />
+  <ellipse cx="184" cy="90" rx="20" ry="25" fill="#ffffff" />
+  <path
+    d="M128 120c-35 0-60 25-60 57 0 21 15 35 36 35 11 0 20-4 24-11 4-7 8-12 14-12s10 5 14 12c4 7 13 11 24 11 21 0 36-14 36-35 0-32-25-57-60-57z"
+    fill="#ffffff"
+  />
+</svg>

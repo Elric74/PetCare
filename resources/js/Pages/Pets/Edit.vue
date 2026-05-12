@@ -69,6 +69,7 @@ matchingBreeds.value = Array.isArray(props.breedOptions) ? props.breedOptions : 
 const editForm = reactive({
 	name: props.pet.name,
 	chip_number: props.pet.chip_number,
+	tag: Number(props.pet.tag ?? 1),
 	species_id: props.pet.species_id,
 	breed_id: props.pet.breed_id,
 	birth_date: props.pet.birth_date,
@@ -519,6 +520,26 @@ onMounted(async () => {
 							:placeholder="t('pets.chip_number')" />
 						<div v-if="errors.chip_number" class="text-sm text-red-500 mt-1">
 							{{ errors.chip_number }}
+						</div>
+					</div>
+					<div class="col-span-12 md:col-span-6">
+						<label class="mb-2 block text-sm font-medium text-gray-500">TAG</label>
+						<div class="flex items-center gap-6 rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+							<label class="inline-flex items-center gap-2 text-sm text-gray-700">
+								<input v-model.number="editForm.tag" type="radio" :value="1" class="h-4 w-4 text-indigo-600 border-gray-300" />
+								<span>● 1</span>
+							</label>
+							<label class="inline-flex items-center gap-2 text-sm text-gray-700">
+								<input v-model.number="editForm.tag" type="radio" :value="2" class="h-4 w-4 text-green-600 border-gray-300" />
+								<span>● 2</span>
+							</label>
+							<label class="inline-flex items-center gap-2 text-sm text-gray-700">
+								<input v-model.number="editForm.tag" type="radio" :value="3" class="h-4 w-4 text-red-600 border-gray-300" />
+								<span>● 3</span>
+							</label>
+						</div>
+						<div v-if="errors.tag" class="text-sm text-red-500 mt-1">
+							{{ errors.tag }}
 						</div>
 					</div>
 					<div class="col-span-12">

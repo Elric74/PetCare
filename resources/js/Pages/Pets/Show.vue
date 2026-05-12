@@ -101,6 +101,17 @@ const getSpeciesFallbackImage = () => {
 	return `/storage/images/pets/${speciesName}_no_photo.png`
 }
 
+const petTagBannerClass = () => {
+	const tag = Number(pet?.tag ?? 1)
+	if (tag === 2) {
+		return 'bg-green-700'
+	}
+	if (tag === 3) {
+		return 'bg-red-700'
+	}
+	return 'bg-indigo-700'
+}
+
 const isGenderUndetermined = () => {
 	const allowed = ['Femelle Stérilisée', 'Femelle', 'Male', 'Male castré']
 	return !allowed.includes(String(pet?.gender || '').trim())
@@ -245,7 +256,7 @@ const promptSpecifyBirthDate = async () => {
 					<!-- For species-level default images, avoid aggressive cropping so the subject remains visible -->
 					<img v-else :src="getSpeciesFallbackImage()" class="object-contain object-center w-full h-56 bg-gray-50" alt="species-default">
 
-					<div class="flex items-center px-6 py-3 bg-indigo-700">
+					<div class="flex items-center px-6 py-3" :class="petTagBannerClass()">
 						<BoltIcon class="w-6 h-6 text-white" />
 
 						<h1 class="mx-3 text-lg font-semibold text-white">{{ pet.name }}</h1>
@@ -331,7 +342,7 @@ const promptSpecifyBirthDate = async () => {
 								'ring-white/60 ring-offset-2 focus:outline-none',
 								selected
 									? 'bg-white text-indigo-700'
-									: 'text-blue-100 hover:bg-white/[0.12] hover:text-white',
+									: 'bg-blue-800/70 text-white hover:bg-blue-700',
 							]">
 								{{ tab }}
 							</button>

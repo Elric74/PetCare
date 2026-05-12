@@ -41,4 +41,14 @@ class MedicationController extends Controller
 			'message' => $response['message']
 		], $response['status']);
 	}
+
+	public function stopMedicationReminder($petId, $medicationId)
+	{
+		$medication = $this->medicationService->stopMedicationReminder($petId, $medicationId);
+
+		return response()->json([
+			'message' => 'Rappel arrêté pour ce traitement.',
+			'medication' => $medication,
+		], 200);
+	}
 }

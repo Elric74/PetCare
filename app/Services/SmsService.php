@@ -6,6 +6,36 @@ use App\Models\SmsLog;
 
 class SmsService
 {
+    private function sendViaTwilio(string $to, string $from, string $message): array
+    {
+        $sid = env('TWILIO_ACCOUNT_SID');
+        $token = env('TWILIO_AUTH_TOKEN');
+
+        if (! $sid || ! $token || ! $from) {
+            return ['success' => false, 'response' => 'Twilio credentials missing'];
+        }
+
+        try {
+            $url = "https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json";
+            $payload = [
+                'To' => $to,
+                'From' => $from,
+                'Body' => $message,
+            ];
+
+            $response = Http::withBasicAuth($sid, $token)->asForm()->post($url, $payload);
+            if ($response->successful()) {
+                return ['success' => true, 'response' => $response->json()];
+            }
+
+            Log::error('SmsService: Twilio error', ['status' => $response->status(), 'body' => $response->body()]);
+            return ['success' => false, 'response' => $response->body()];
+        } catch (\Throwable $e) {
+            Log::error('SmsService exception: ' . $e->getMessage());
+            return ['success' => false, 'response' => $e->getMessage()];
+        }
+    }
+
     /**
      * Send an SMS via configured provider (Twilio) or simulate if not configured.
      *
@@ -147,5 +177,18 @@ class SmsService
             SmsLog::create($logData);
         }
         return ['success' => true, 'response' => 'simulated'];
+    }
+
+    public function sendWhatsapp(string $toE164, string $message): array
+    {
+        $whatsappFrom = env('TWILIO_WHATSAPP_FROM');
+        if (! $whatsappFrom) {
+            return ['success' => false, 'response' => 'TWILIO_WHATSAPP_FROM missing'];
+        }
+
+        $to = str_starts_with($toE164, 'whatsapp:') ? $toE164 : 'whatsapp:' . $toE164;
+        $from = str_starts_with($whatsappFrom, 'whatsapp:') ? $whatsappFrom : 'whatsapp:' . $whatsappFrom;
+
+        return $this->sendViaTwilio($to, $from, $message);
     }
 }

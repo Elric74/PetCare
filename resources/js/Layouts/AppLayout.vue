@@ -4,7 +4,7 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import Banner from '@/Components/Banner.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
-import { UsersIcon, Squares2X2Icon, BoltIcon, CalendarDaysIcon, BeakerIcon, Cog6ToothIcon, PhotoIcon } from '@heroicons/vue/24/outline'
+import { UsersIcon, Squares2X2Icon, BoltIcon, CalendarDaysIcon, BeakerIcon, Cog6ToothIcon, PhotoIcon, EnvelopeIcon } from '@heroicons/vue/24/outline'
 import { initFlowbite } from 'flowbite'
 import { useI18n } from 'vue-i18n';
 
@@ -205,9 +205,23 @@ const logout = () => {
 								>
 									{{ $page.props.notifications.unassociatedPsCount }}
 								</span>
-							</NavLink>
-						</li>
-						<li>
+						</NavLink>
+					</li>
+					<li>
+						<NavLink :href="route('mailbox.index')" :active="route().current('mailbox.index')"
+							class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
+							<EnvelopeIcon
+								class="w-6 h-6 transition duration-75 dark:text-gray-400 group-hover:text-gray-100 dark:group-hover:text-white" />
+							<span class="ml-3">Messagerie</span>
+							<span
+								v-if="$page.props.notifications?.unassociatedMailboxCount > 0"
+								class="ml-auto inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-amber-600 px-2 py-0.5 text-xs font-semibold text-white"
+							>
+								{{ $page.props.notifications.unassociatedMailboxCount }}
+							</span>
+						</NavLink>
+					</li>
+					<li>
 						<NavLink :href="route('parameters.index')" :active="route().current('parameters.index')"
 							class="flex items-center p-2 text-base font-medium text-gray-500 hover:text-gray-100 rounded-lg dark:text-white hover:bg-gray-800 dark:hover:bg-gray-700 group">
 							<Cog6ToothIcon

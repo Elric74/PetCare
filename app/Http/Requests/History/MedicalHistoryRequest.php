@@ -29,6 +29,13 @@ class MedicalHistoryRequest extends FormRequest
             'histories.*.treatment' => ['nullable', 'string'],
             'histories.*.weight_g' => ['nullable', 'integer', 'min:0'],
             'histories.*.notes' => ['nullable', 'string'],
+            'histories.*.structured_notes' => ['nullable', 'array'],
+            'histories.*.structured_notes.yeux_oreilles' => ['nullable', 'string', 'max:20000'],
+            'histories.*.structured_notes.bouche' => ['nullable', 'string', 'max:20000'],
+            'histories.*.structured_notes.coeur' => ['nullable', 'string', 'max:20000'],
+            'histories.*.structured_notes.mobilite' => ['nullable', 'string', 'max:20000'],
+            'histories.*.structured_notes.peau' => ['nullable', 'string', 'max:20000'],
+            'histories.*.structured_notes.autre' => ['nullable', 'string', 'max:20000'],
         ];
     }
 

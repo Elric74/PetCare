@@ -17,8 +17,13 @@ class Medication extends Model
 		'dosage',
 		'frequency',
 		'reminder_date',
+		'is_active',
 		'administering_veterinarian',
 		'notes',
+	];
+
+	protected $casts = [
+		'is_active' => 'boolean',
 	];
 
 	public function pet(): BelongsTo

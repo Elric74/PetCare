@@ -266,6 +266,19 @@ class LabReportAssociationController extends Controller
         return is_file($absolutePath) ? $absolutePath : null;
     }
 
+    public function showPdf(LabReport $labReport)
+    {
+        $pdfPath = $this->resolveLabReportPdfAbsolutePath($labReport);
+        if ($pdfPath === null) {
+            abort(404, 'Fichier PDF introuvable.');
+        }
+
+        return response()->file($pdfPath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . basename($pdfPath) . '"',
+        ]);
+    }
+
     private function extractAddressFromPdf(LabReport $labReport, string $ownerFullName): ?string
     {
         $pdfPath = $this->resolveLabReportPdfAbsolutePath($labReport);
@@ -875,6 +888,8 @@ class LabReportAssociationController extends Controller
             'breed_id' => $resolvedBreedId,
             'birth_date' => $resolvedBirthDate,
             'gender' => $resolvedGender,
+            'decedee' => false,
+            'date_deces' => null,
         ]);
 
         $this->attachLabReportToPet($labReport, (int) $pet->id);

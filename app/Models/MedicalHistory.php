@@ -19,6 +19,11 @@ class MedicalHistory extends Model
 		'treatment',
 		'weight_g',
 		'notes',
+		'structured_notes',
+	];
+
+	protected $casts = [
+		'structured_notes' => 'array',
 	];
 
 	public function pet(): BelongsTo
